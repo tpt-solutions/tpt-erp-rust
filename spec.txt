@@ -1,0 +1,108 @@
+System Design Document: TPT ERP RUST (tpt-erp-rust)
+Date: August 3, 2026
+Status: Draft / Architecture Proposal
+Core Philosophy: Correctness by Compilation, Customization by Sandboxing, Scale by Default.
+1. Executive Summary
+TPT ERP RUST (tpt-erp-rust) is not a monolithic, one-size-fits-all ERP application. It is a high-performance, type-safe Rust framework and library ecosystem designed to drastically reduce the cost, risk, and time required to build domain-specific Enterprise Resource Planning systems.
+By leveraging Rust’s strict type system, fearless concurrency, and WebAssembly (Wasm) plugin runtime, tpt-erp-rust solves the three historical killers of ERP projects: data corruption, unmanageable customization forks, and batch-processing bottlenecks.
+To prove the architecture, we will build two reference implementations in domains where legacy ERPs (SAP, Oracle, Odoo) struggle with performance and complexity: High-Volume 3PL (Third-Party Logistics) and Advanced Manufacturing (Shop Floor MES).
+2. The tpt-erp-rust Ecosystem (Core Libraries)
+The framework is distributed as a workspace of highly cohesive, loosely coupled Rust crates.
+2.1. tpt-primitives (Domain Modeling)
+Zero-cost abstractions for business concepts. Prevents invalid states at compile time.
+Strict Money: Money<Currency> using rust_decimal. Prevents floating-point errors and cross-currency addition.
+Strong IDs: Id<T> wrappers. Prevents passing a UserId where a ProductId is expected.
+State Machines: #[derive(StateMachine)] macro to enforce valid workflow transitions (e.g., an Order cannot go from Shipped back to Draft).
+2.2. tpt-ledger (Event Sourcing & Accounting)
+The financial and audit heart of the system.
+Double-Entry Core: Every transaction must balance. Enforced via Rust traits before hitting the database.
+Event Store: Append-only, immutable event log.
+CQRS Engine: Fast, asynchronous projection builders to generate read-models for the UI.
+2.3. tpt-macros (Developer Velocity)
+Procedural macros to eliminate CRUD boilerplate while maintaining strict control.
+#[derive(TptEntity)]: Auto-generates SQLx/SeaORM mappings, validation, and audit hooks.
+#[derive(TptApi)]: Auto-generates Axum REST/GraphQL endpoints with built-in pagination, filtering, and RBAC checks.
+2.4. tpt-wasm (The Customization Engine)
+The secret weapon for client-specific business logic.
+Uses wasmtime to execute client-provided .wasm modules safely.
+Provides a strict WASI (WebAssembly System Interface) host-binding layer so plugins can read ERP data but cannot crash the host or access unauthorized memory.
+2.5. tpt-tenant (Multi-Tenancy & Security)
+Intercepts all database connections and injects Postgres Row-Level Security (RLS) variables.
+Ensures data isolation at the database engine level, making cross-tenant data leaks architecturally impossible.
+3. Reference Implementation 1: High-Volume 3PL & WMS
+Target Domain: Third-Party Logistics (3PL) and Warehouse Management Systems (WMS).
+Why Rust Shines Here
+Legacy ERPs treat warehouses as simple databases. A modern 3PL is a high-throughput event stream. A busy warehouse processes 10,000+ barcode scans, location updates, and telemetry events per second. Python/Java garbage collection pauses cause scanner lag; SQL locks cause inventory deadlocks. Rust’s async runtime (tokio) and zero-allocation serialization handle this throughput effortlessly.
+Key Modules in the 3PL Example
+Real-Time Inventory Engine: Uses tpt-ledger to track inventory not just as a total, but as a stream of events. Handles concurrent bin-location updates without database row-locking bottlenecks.
+Wave & Route Optimization: Heavy CPU-bound algorithms to calculate the most efficient walking paths for pickers. Rust’s performance turns a 5-minute batch job into a 10-second real-time calculation.
+IoT Ingestion: Direct integration with conveyor sensors and RFID gates via MQTT, processing thousands of messages per second with minimal memory overhead.
+The tpt-wasm Use Case (Customization)
+Client A uses "Zone Picking", Client B uses "Wave Picking", and Client C has a highly specific union-mandated break-routing rule.
+Instead of forking the codebase, the 3PL provider writes these routing algorithms in Rust, compiles them to .wasm, and uploads them to the tpt-wasm runtime. The core ERP dynamically routes picker tasks through the client's specific Wasm module.
+4. Reference Implementation 2: Advanced Manufacturing (MES)
+Target Domain: Manufacturing Execution Systems (MES) and Shop Floor Control.
+Why Rust Shines Here
+Manufacturing requires Material Requirements Planning (MRP) and Bill of Materials (BOM) explosions. Calculating what raw materials are needed for a complex, multi-level assembly (e.g., an aerospace component with 4,000 sub-parts) involves massive recursive tree traversals. In legacy ERPs, MRP runs take hours or overnight. In Rust, utilizing multi-core parallel iterators (rayon), a 4,000-part BOM explosion can be calculated in milliseconds. Furthermore, shop floors require zero downtime—Rust’s memory safety guarantees the system won't segfault in the middle of a production run.
+Key Modules in the MES Example
+Parallel MRP Engine: Uses rayon to traverse deeply nested BOMs concurrently, calculating material shortages and lead times in real-time.
+Work-in-Progress (WIP) State Machine: Strict tpt-primitives state machines track every item on the floor. An item physically cannot be marked "Assembled" if the "Machined" state hasn't been completed and verified.
+Machine Telemetry & OEE: Ingests high-frequency data from CNC machines and PLCs to calculate Overall Equipment Effectiveness (OEE) in real-time, storing it in a time-series database (TimescaleDB).
+The tpt-wasm Use Case (Customization)
+Every factory has unique Quality Control (QC) tolerance rules and machine-specific telemetry parsing.
+Machine operators or quality engineers write custom QC tolerance checks and telemetry parsers in Rust, compile to Wasm, and deploy them to the shop floor edge-nodes. The core MES evaluates these custom rules in microseconds without restarting the main production server.
+5. Technical Architecture & Stack
+5.1. Backend & Core
+Language: Rust (Edition 2024/2027)
+Web Framework: Axum (for high-performance, ergonomic HTTP/gRPC endpoints).
+Async Runtime: Tokio.
+Task Queue: NATS JetStream or Apache Kafka (for resilient event processing and background jobs).
+5.2. Data Layer
+Primary DB: PostgreSQL 16+ (Utilizing JSONB for flexible attributes, and strict RLS for multi-tenancy).
+Time-Series DB: TimescaleDB (for IoT telemetry, machine data, and audit logs).
+Cache/State: Redis or Dragonfly (for session management and fast read-model caching).
+5.3. Frontend (The "Full Rust" Advantage)
+While React/Next.js is an option, to truly leverage the ecosystem, we will use Leptos (or Yew).
+Why? Leptos allows sharing the tpt-primitives (like the Money and StateMachine types) directly between the backend and frontend via Wasm. The frontend gets compile-time guarantees that it won't send invalid states to the backend.
+5.4. Infrastructure
+Containerization: Docker (multi-stage builds to keep Rust binary images under 20MB).
+Orchestration: Kubernetes (K8s) for auto-scaling the high-throughput ingestion nodes.
+6. Development Roadmap
+Phase 1: The Foundation (Months 1-3)
+Initialize tpt-erp-rust Cargo workspace.
+Build tpt-primitives (Money, IDs, State Machines).
+Build tpt-macros (Entity derivation, basic API generation).
+Milestone: A developer can spin up a type-safe, multi-tenant CRUD API in < 10 minutes.
+Phase 2: The Data & Ledger Core (Months 4-6)
+Build tpt-ledger (Event sourcing, double-entry validation).
+Build tpt-tenant (Postgres RLS integration).
+Integrate Axum and SQLx/SeaORM.
+Milestone: The core can process financial transactions with 100% auditability and zero cross-tenant data leakage.
+Phase 3: The Wasm Boundary (Months 7-9)
+Build tpt-wasm using wasmtime.
+Define the host-guest interface (WIT - WebAssembly Interface Types).
+Build the CLI tool (tpt plugin build) for compiling client rules to Wasm.
+Milestone: Proven ability to hot-load and execute custom business logic safely at runtime.
+Phase 4: Reference Implementations (Months 10-14)
+Sprint A: Build the 3PL/WMS example. Focus on high-throughput ingestion and Wasm routing plugins.
+Sprint B: Build the Manufacturing/MES example. Focus on parallel MRP calculations and IoT telemetry.
+Milestone: Two production-ready, open-source reference ERPs that serve as both marketing tools and stress-tests for the framework.
+7. Risks & Mitigations
+Risk
+Impact
+Mitigation Strategy
+Rust Compile Times
+Slows down developer iteration during the CRUD-heavy phases.
+Use cargo-chef for Docker caching; heavily utilize tpt-macros to reduce code written; use sccache in CI/CD.
+Wasm Ecosystem Maturity
+Wasm tooling can still be fragmented or lack certain OS-level features.
+Restrict Wasm plugins to pure computational logic (no direct file I/O). Use WIT (WebAssembly Interface Types) for strict, versioned host-guest contracts.
+Domain Expertise Gap
+Building ERPs requires deep business knowledge, not just coding skills.
+Partner with domain experts (logistics managers, plant managers) during Phase 4. The framework is just the engine; the examples need real business validation.
+Frontend Friction
+Full-stack Rust (Leptos) has a smaller talent pool than React.
+Design the API layer (tpt-macros) to be perfectly REST/GraphQL compliant, allowing teams to use React/Vue if they prefer, keeping Leptos as an optional "fast path".
+8. Conclusion
+tpt-erp-rust shifts the paradigm of ERP development. By treating the ERP not as a rigid application, but as a high-performance, type-safe execution environment, we eliminate the technical debt that plagues legacy systems.
+The 3PL and Manufacturing examples are not arbitrary; they are chosen specifically because they represent the exact bleeding edges of business complexity—high throughput, strict state, and heavy computation—where Rust's architectural advantages transform from "nice to have" into "absolute business requirements."
