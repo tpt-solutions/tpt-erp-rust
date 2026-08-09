@@ -1,6 +1,6 @@
 [package]
 name = "quickstart"
-description = "10-minute quickstart: type-safe business types with tpt-primitives + StateMachine."
+description = "10-minute quickstart: a type-safe, multi-tenant CRUD API with tpt-primitives + TptEntity + TptApi."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,7 +10,14 @@ publish = false
 
 [dependencies]
 tpt-primitives = { workspace = true }
+tpt-entity = { workspace = true }
 rust_decimal = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

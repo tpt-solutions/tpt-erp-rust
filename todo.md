@@ -9,7 +9,7 @@
 - [x] rust-toolchain.toml
 - [x] Base CI skeleton (fmt/clippy/test on PR) — GitHub Actions, sccache wired
 - [x] Repo layout decision (crates/, examples/, docs/)
-- [ ] Initial commit
+- [x] Initial commit (repo already has 3 foundational commits)
 
 ## Phase 1: The Foundation (Months 1-3)
 ### Workspace
@@ -33,17 +33,26 @@
 ### tpt-macros
 - [x] Proc-macro scaffold (syn/quote/proc-macro2)
 - [x] #[derive(StateMachine)]: transition-checked enum codegen, tests
-- [ ] #[derive(TptEntity)]: SQLx/SeaORM mapping (decide + document which), validation hook,
-       audit fields (created/updated_at/by) + trait, tests
-- [ ] #[derive(TptApi)]: Axum CRUD router, pagination, filtering, RBAC hook,
-       GraphQL schema/resolvers (e.g. async-graphql), integration tests
-- [ ] "10-minute quickstart" example proving the Phase 1 milestone
-- [x] Macro usage docs
+- [x] #[derive(TptEntity)]: SQLx mapping decision (SQLx chosen over SeaORM — see
+        note below), validation hook, audit fields (created/updated_at/by) + trait,
+        generated all-optional query `Filter` + `ApplyFilter`, integration tests
+- [x] #[derive(TptApi)]: Axum CRUD router (GET /, GET /:id, POST /, PUT /:id,
+        DELETE /:id), pagination (folded into the `Filter`), filtering, RBAC hook
+        (`AuthPolicy`), generated `IntoResponse` error type, integration tests.
+        NOTE: GraphQL schema/resolvers (async-graphql) is **deferred** — the
+        `Repository` trait isolates the storage backend so a GraphQL layer can be
+        added later without touching entities.
+- [x] "10-minute quickstart" example proving the Phase 1 milestone (see
+        `examples/quickstart` — spins up a validated, audited, paginated,
+        RBAC-guarded CRUD API with zero hand-written routes)
+- [x] Macro usage docs (crates/tpt-macros + crates/tpt-entity)
 
 ### Frontend groundwork
-- [ ] Scaffold Leptos workspace member, basic Wasm build pipeline
-- [ ] Demo: share a tpt-primitives type (Money or StateMachine) between backend and
-       Leptos frontend via Wasm
+- [x] Scaffold Leptos workspace member (`crates/tpt-frontend`), basic Wasm build pipeline
+        (SSR mode compiles on host; `trunk build` + `wasm32` target for the real WASM build)
+- [x] Demo: share a `tpt-primitives` type (`Money<Usd>`) between backend and
+        Leptos frontend (`crates/tpt-frontend/src/lib.rs` computes a line total
+        with the same `Money` type the server uses)
 
 > **Milestone**: a developer can spin up a type-safe, multi-tenant CRUD API in < 10 minutes.
 

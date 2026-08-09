@@ -1,7 +1,14 @@
 //! Procedural macros for TPT ERP.
 //!
-//! Currently provides [`StateMachine`]. `TptEntity` and `TptApi` are planned
-//! (see the project roadmap).
+//! - [`StateMachine`] — derive a transition-checked state enum.
+//! - [`TptEntity`] — map a struct to a SQL table, add validation + audit + a query
+//!   filter. Backed by the runtime traits in `tpt-entity`.
+//! - [`TptApi`] — generate an Axum CRUD router (pagination, filtering, RBAC) for a
+//!   [`TptEntity`].
+
+mod tpt_api;
+mod tpt_entity;
+mod util;
 
 use proc_macro::TokenStream;
 use quote::quote;
@@ -124,4 +131,30 @@ pub fn derive_state_machine(input: TokenStream) -> TokenStream {
     };
 
     expanded.into()
+}
+
+/// Map a struct to a SQL table, adding validation, audit fields, and a query
+/// filter. See [`tpt_entity`] for the backing runtime traits and usage.
+///
+/// Requires the consumer crate to depend on `tpt-entity`, `serde`, and (for DB
+/// mapping) `sqlx` (add `#[derive(sqlx::FromRow)]` alongside this derive).
+#[proc_macro_derive(TptEntity, attributes(tpt_entity, id, audit, validate))]
+pub fn derive_tpt_entity_entry(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    match tpt_entity::derive_tpt_entity(input) {
+        Ok(ts) => ts.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+/// Generate an Axum CRUD router (pagination, filtering, RBAC) for a
+/// [`TptEntity`]. Requires the consumer crate to depend on `tpt-entity` and
+/// `axum`.
+#[proc_macro_derive(TptApi, attributes(tpt_api))]
+pub fn derive_tpt_api_entry(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    match tpt_api::derive(input) {
+        Ok(ts) => ts.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
 }

@@ -6,6 +6,8 @@ members = [
     "crates/tpt-ledger",
     "crates/tpt-tenant",
     "crates/tpt-wasm",
+    "crates/tpt-entity",
+    "crates/tpt-frontend",
     "examples/quickstart",
     "examples/server",
 ]
@@ -27,6 +29,7 @@ tpt-primitives = { path = "crates/tpt-primitives", version = "0.1.0" }
 tpt-macros = { path = "crates/tpt-macros", version = "0.1.0" }
 tpt-ledger = { path = "crates/tpt-ledger", version = "0.1.0" }
 tpt-tenant = { path = "crates/tpt-tenant", version = "0.1.0" }
+tpt-entity = { path = "crates/tpt-entity", version = "0.1.0" }
 
 # Common third-party deps
 rust_decimal = { version = "1", features = ["serde", "maths"] }
@@ -41,6 +44,9 @@ quote = "1"
 proc-macro2 = "1"
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
+async-trait = "0.1"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "uuid", "macros"] }
+leptos = { version = "0.7", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "warn"
