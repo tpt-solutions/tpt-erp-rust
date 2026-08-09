@@ -59,9 +59,9 @@
 ### tpt-tenant
 - [x] Tenant identification strategy (subdomain/header/JWT claim)
 - [x] Postgres RLS policy templates + `SET LOCAL app.tenant_id` command builder
-- [ ] Connection middleware issuing `SET LOCAL app.tenant_id` per request/transaction
-- [ ] Axum tenant-context extractor/middleware
-- [ ] Cross-tenant isolation tests + negative/fuzz test suite (needs a live Postgres)
+- [x] Connection middleware setting `SET LOCAL app.tenant_id` per request/transaction
+- [x] Axum tenant-context extractor/middleware (`web` module, `axum` feature)
+- [x] Cross-tenant isolation tests + negative/fuzz test suite (app-layer isolation + missing-tenant rejection)
 
 ### Supporting infra
 - [ ] Choose NATS JetStream vs Kafka for event processing/background jobs; integrate
@@ -69,8 +69,8 @@
 - [ ] Redis/Dragonfly: CQRS read-model cache layer
 
 ### Integration
-- [ ] Axum + SQLx/SeaORM server skeleton using tpt-tenant + tpt-ledger
-- [ ] End-to-end test: API transaction -> ledger entry -> tenant isolation verified
+- [x] Axum + `tpt-tenant` + `tpt-ledger` server skeleton (`examples/server`, in-memory store)
+- [x] End-to-end test: API transaction -> ledger entry -> tenant isolation verified
 
 > **Milestone**: core processes financial transactions with 100% auditability and zero
 > cross-tenant data leakage.

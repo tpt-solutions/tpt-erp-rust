@@ -18,7 +18,7 @@ docs/       architecture & usage notes
 | `tpt-primitives`| `Money<C>`, `Id<T>`, `IntId<T>`, `Currency`, `StateMachine` derive.    | Implemented |
 | `tpt-macros`    | Proc-macros. `StateMachine` implemented; `TptEntity`/`TptApi` planned. | Partial     |
 | `tpt-ledger`    | Append-only event store (optimistic concurrency), double-entry core, CQRS projections. | Implemented (core) |
-| `tpt-tenant`    | Multi-tenancy: identification + Postgres RLS templates + `SET LOCAL` builder.        | Partial     |
+| `tpt-tenant`    | Multi-tenancy: identification + Postgres RLS + `SET LOCAL` + Axum extractor/middleware. | Implemented  |
 | `tpt-wasm`      | `wasmtime` sandbox for safe, hot-loadable business-logic plugins.      | Scaffold    |
 
 ## Design principles

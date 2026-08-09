@@ -8,6 +8,7 @@
 use crate::TenantId;
 use serde::Deserialize;
 use std::fmt;
+use uuid::Uuid;
 
 /// The user-facing tenant identifier carried in a subdomain/header/claim. This is
 /// distinct from the internal [`TenantId`] (a UUID): the slug is what clients send,
@@ -36,6 +37,14 @@ impl TenantSlug {
             return Err(TenantResolutionError::InvalidSlug(self.0.clone()));
         }
         Ok(())
+    }
+
+    /// Deterministically map this slug to a stable [`TenantId`] (UUID v5) so tenants can
+    /// be identified without a database round-trip. The same slug always yields the same
+    /// id, which keeps tenant-scoped storage and isolation reproducible.
+    pub fn to_id(&self) -> TenantId {
+        let uuid = Uuid::new_v5(&Uuid::NAMESPACE_DNS, self.0.as_bytes());
+        TenantId::from_uuid(uuid)
     }
 }
 

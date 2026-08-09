@@ -32,6 +32,9 @@ pub enum TenantError {
 pub mod identification;
 pub mod rls;
 
+#[cfg(feature = "axum")]
+pub mod web;
+
 pub use identification::{
     TenantContext, TenantResolutionError, TenantSlug, from_header, from_jwt_claims, from_subdomain,
 };
