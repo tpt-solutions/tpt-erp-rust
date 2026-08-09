@@ -1,0 +1,16 @@
+[package]
+name = "quickstart"
+description = "10-minute quickstart: type-safe business types with tpt-primitives + StateMachine."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+tpt-primitives = { workspace = true }
+rust_decimal = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,16 @@
+[package]
+name = "tpt-tenant"
+description = "Multi-tenancy for TPT ERP via Postgres RLS and per-request tenant context (foundation scaffold)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tpt-primitives = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

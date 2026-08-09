@@ -1,0 +1,44 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/tpt-primitives",
+    "crates/tpt-macros",
+    "crates/tpt-ledger",
+    "crates/tpt-tenant",
+    "crates/tpt-wasm",
+    "examples/quickstart",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/tpt-erp-rust/tpt-erp-rust"
+homepage = "https://github.com/tpt-erp-rust/tpt-erp-rust"
+authors = ["TPT Solutions"]
+rust-version = "1.85"
+keywords = ["erp", "finance", "ledger", "webassembly", "multitenancy"]
+categories = ["database", "finance", "web-programming"]
+
+[workspace.dependencies]
+# Internal crates
+tpt-primitives = { path = "crates/tpt-primitives", version = "0.1.0" }
+tpt-macros = { path = "crates/tpt-macros", version = "0.1.0" }
+
+# Common third-party deps
+rust_decimal = { version = "1", features = ["serde", "maths"] }
+serde = { version = "1", features = ["derive"] }
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+rust_2018_idioms = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "deny"
