@@ -49,18 +49,19 @@
 
 ## Phase 2: The Data & Ledger Core (Months 4-6)
 ### tpt-ledger
-- [ ] Event schema (aggregate id, type, payload, timestamp, sequence)
-- [ ] Append-only Postgres event store + optimistic concurrency on append
-- [ ] Double-Entry Core trait: balanced-transaction enforcement, tests (balanced/unbalanced)
-- [ ] CQRS projection engine: async projector trait, example read-model, replay-from-scratch,
-       projection-correctness tests
+- [x] Event schema (aggregate id, type, payload, timestamp, sequence)
+- [x] Append-only event store with optimistic concurrency on append (in-memory reference;
+       Postgres backend persists the same `StoredEvent` shape)
+- [x] Double-Entry Core trait: balanced-transaction enforcement, tests (balanced/unbalanced)
+- [x] CQRS projection engine: async `Projector` trait, `BalanceProjection` read-model,
+       replay-from-scratch, projection-correctness tests
 
 ### tpt-tenant
-- [ ] Tenant identification strategy (subdomain/header/JWT claim)
-- [ ] Postgres RLS policy templates
-- [ ] Connection middleware setting `SET LOCAL app.tenant_id` per request/transaction
+- [x] Tenant identification strategy (subdomain/header/JWT claim)
+- [x] Postgres RLS policy templates + `SET LOCAL app.tenant_id` command builder
+- [ ] Connection middleware issuing `SET LOCAL app.tenant_id` per request/transaction
 - [ ] Axum tenant-context extractor/middleware
-- [ ] Cross-tenant isolation tests + negative/fuzz test suite
+- [ ] Cross-tenant isolation tests + negative/fuzz test suite (needs a live Postgres)
 
 ### Supporting infra
 - [ ] Choose NATS JetStream vs Kafka for event processing/background jobs; integrate

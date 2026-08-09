@@ -1,14 +1,13 @@
-//! # tpt-tenant (scaffold)
+//! # tpt-tenant
 //!
-//! Guarantees tenant isolation at the database engine level. Planned for Phase 2:
+//! Guarantees tenant isolation at the database engine level.
 //!
-//! - Tenant identification from subdomain / header / JWT claim.
-//! - Postgres Row-Level Security (RLS) policy templates.
-//! - Connection middleware that issues `SET LOCAL app.tenant_id = ...` per request.
-//! - An Axum extractor exposing the resolved tenant context.
+//! - [`identification`] — extract the active tenant from subdomain / header / JWT claim.
+//! - [`rls`] — Postgres Row-Level Security policy templates and the `SET LOCAL`
+//!   command that scopes each transaction to a tenant.
 //!
-//! This crate currently defines the [`TenantId`] and tenant-resolution error used
-//! across the workspace.
+//! The Axum extractor/middleware that ties these to a request is added in a later step;
+//! the primitives here are pure and fully unit-tested.
 
 use thiserror::Error;
 use tpt_primitives::Id;
@@ -29,6 +28,14 @@ pub enum TenantError {
     #[error("tenant {0} is not authorized for this resource")]
     Forbidden(TenantId),
 }
+
+pub mod identification;
+pub mod rls;
+
+pub use identification::{
+    TenantContext, TenantResolutionError, TenantSlug, from_header, from_jwt_claims, from_subdomain,
+};
+pub use rls::{TENANT_GUC, disable_rls, enable_rls, rls_policy, set_tenant_command};
 
 #[cfg(test)]
 mod tests {

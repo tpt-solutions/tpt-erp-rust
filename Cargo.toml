@@ -28,6 +28,8 @@ tpt-macros = { path = "crates/tpt-macros", version = "0.1.0" }
 # Common third-party deps
 rust_decimal = { version = "1", features = ["serde", "maths"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
 syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"

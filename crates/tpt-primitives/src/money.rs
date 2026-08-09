@@ -5,6 +5,7 @@
 //! different types and cannot be accidentally added, subtracted, or compared.
 
 use crate::currency::Currency;
+use core::hash::Hash;
 use core::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 use rust_decimal::Decimal;
 use rust_decimal::MathematicalOps;
@@ -21,10 +22,36 @@ use std::fmt;
 /// let b = Money::<Eur>::from_major(5);
 /// let _ = a + b; // currency mismatch — does not compile
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy)]
 pub struct Money<C: Currency> {
     amount: Decimal,
     _currency: core::marker::PhantomData<C>,
+}
+
+impl<C: Currency> PartialEq for Money<C> {
+    fn eq(&self, other: &Self) -> bool {
+        self.amount == other.amount
+    }
+}
+
+impl<C: Currency> Eq for Money<C> {}
+
+impl<C: Currency> PartialOrd for Money<C> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<C: Currency> Ord for Money<C> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.amount.cmp(&other.amount)
+    }
+}
+
+impl<C: Currency> Hash for Money<C> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.amount.hash(state);
+    }
 }
 
 impl<C: Currency> Money<C> {

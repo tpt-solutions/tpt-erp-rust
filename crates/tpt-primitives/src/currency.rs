@@ -20,7 +20,7 @@ pub trait Currency: 'static + Send + Sync + Copy + core::fmt::Debug {
 macro_rules! currency_marker {
     ($name:ident, $code:literal, $symbol:literal, $minor:literal) => {
         /// Auto-generated currency marker type.
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
         pub struct $name;
 
         impl Currency for $name {

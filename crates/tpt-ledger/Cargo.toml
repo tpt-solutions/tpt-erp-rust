@@ -1,6 +1,6 @@
 [package]
 name = "tpt-ledger"
-description = "Event-sourced double-entry ledger and CQRS projection engine for TPT ERP (foundation scaffold)."
+description = "Event-sourced double-entry ledger and CQRS projection engine for TPT ERP."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,7 +11,13 @@ rust-version.workspace = true
 [dependencies]
 tpt-primitives = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+rust_decimal = { workspace = true }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

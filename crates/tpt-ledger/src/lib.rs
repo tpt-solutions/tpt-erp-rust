@@ -1,36 +1,25 @@
-//! # tpt-ledger (scaffold)
+//! # tpt-ledger
 //!
-//! The financial and audit heart of TPT ERP. Planned for Phase 2:
+//! The financial and audit heart of TPT ERP.
 //!
-//! - **Event store**: append-only, immutable event log with optimistic concurrency.
-//! - **Double-entry core**: a trait enforcing that every transaction balances, checked
-//!   *before* it hits the database.
-//! - **CQRS projection engine**: asynchronous projectors that build read-models and
-//!   support replay-from-scratch.
+//! - [`event`] — the append-only event schema ([`StoredEvent`], [`Event`]).
+//! - [`store`] — an in-memory append-only [`EventStore`] with optimistic concurrency.
+//! - [`double_entry`] — the [`DoubleEntry`] trait enforcing that transactions balance.
+//! - [`projection`] — the CQRS [`Projector`] trait, [`replay`], and an example
+//!   [`BalanceProjection`] read model.
 //!
-//! This crate currently exposes shared error types; the engine lands in Phase 2.
+//! A production deployment persists the same [`StoredEvent`] shape to Postgres and runs
+//! the same projectors; only the storage backend changes.
 
-use thiserror::Error;
+pub mod double_entry;
+pub mod event;
+pub mod projection;
+pub mod store;
 
-/// Errors for ledger operations.
-#[derive(Debug, Error)]
-pub enum LedgerError {
-    #[error("transaction does not balance: debits {debits} != credits {credits}")]
-    Unbalanced { debits: String, credits: String },
-    #[error("optimistic concurrency conflict at sequence {expected}, found {actual}")]
-    Conflict { expected: u64, actual: u64 },
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn error_display() {
-        let e = LedgerError::Unbalanced {
-            debits: "10".into(),
-            credits: "9".into(),
-        };
-        assert!(e.to_string().contains("does not balance"));
-    }
-}
+pub use double_entry::{
+    Account, AccountId, DoubleEntry, DoubleEntryError, EntrySide, LedgerEntry, LedgerEvent,
+    LedgerTransaction, Transaction, TransactionId,
+};
+pub use event::{Event, EventStoreError, StoredEvent};
+pub use projection::{BalanceProjection, ProjectionError, Projector, replay};
+pub use store::EventStore;
