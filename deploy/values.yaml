@@ -1,0 +1,60 @@
+# Default values for the tpt-erp-ingestion chart.
+#
+# These nodes run the high-throughput ingestion workloads: WMS IoT (MQTT conveyor /
+# RFID) and MES machine-telemetry (CNC/PLC) pipelines. They are intentionally
+# horizontally scalable and isolated from the API tier.
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/tpt-erp-rust/ingestion
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# Back-pressure-aware resource sizing. Ingestion is CPU-bound (parse + transform)
+# and bursts with device traffic, so we give generous CPU and cap memory.
+resources:
+  requests:
+    cpu: "500m"
+    memory: "256Mi"
+  limits:
+    cpu: "2"
+    memory: "512Mi"
+
+# Autoscaling: scale on CPU, but also expose the knobs to scale on custom
+# metrics (e.g. MQTT message rate) once a metrics pipeline is wired in.
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  # targetMetric is a placeholder for a custom Prometheus/KEDA metric, e.g.
+  # messages-per-second per pod. Left commented until the metrics server is up.
+  # targetMetric:
+  #   type: Pods
+  #   pods:
+  #     metric:
+  #       name: mqtt_messages_per_second
+  #     target:
+  #       type: AverageValue
+  #       averageValue: "1000"
+
+# Environment passed to every ingestion pod. Tenant isolation is enforced at the
+# data layer (tpt-tenant + Postgres RLS), so these nodes only carry connection
+# wiring, never trust.
+env:
+  RUST_LOG: "info"
+  TPT_BUS_URL: "nats://nats:4222"
+  TPT_CACHE_URL: "redis://redis:6379"
+  TPT_NATS_STREAM: "tpt-events"
+
+service:
+  name: ingestion
+  port: 8080
+  # Ingestion is pull-based from the bus; the service is only for health/readiness.
+  type: ClusterIP
+
+# Liveness/readiness so the HPA and rollouts react to stuck consumers.
+health:
+  livenessPath: /healthz
+  readinessPath: /readyz

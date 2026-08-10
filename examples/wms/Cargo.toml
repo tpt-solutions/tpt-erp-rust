@@ -1,0 +1,37 @@
+[package]
+name = "wms"
+description = "Reference 3PL/WMS implementation on TPT ERP: real-time event-sourced inventory + wave/route optimization."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+tpt-primitives = { workspace = true }
+tpt-ledger = { workspace = true }
+tpt-bus = { workspace = true }
+tpt-cache = { workspace = true }
+tpt-tenant = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rust_decimal = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+futures = "0.3"
+
+# Optional MQTT ingress (feature `mqtt`). The core ingestion pipeline has no
+# transport dependency; this only adds the broker adapter.
+rumqttc = { version = "0.24", features = ["use-rustls"], optional = true }
+
+[features]
+mqtt = ["dep:rumqttc"]
+
+[dev-dependencies]
+uuid = { workspace = true }
+
+[lints]
+workspace = true

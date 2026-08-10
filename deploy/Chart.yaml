@@ -1,0 +1,12 @@
+apiVersion: v2
+name: tpt-erp-ingestion
+description: Auto-scaling high-throughput event/telemetry ingestion nodes for TPT ERP
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - erp
+  - ingestion
+  - kubernetes
+  - helm
+home: https://github.com/tpt-erp-rust/tpt-erp-rust

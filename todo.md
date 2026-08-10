@@ -73,9 +73,12 @@
 - [x] Cross-tenant isolation tests + negative/fuzz test suite (app-layer isolation + missing-tenant rejection)
 
 ### Supporting infra
-- [ ] Choose NATS JetStream vs Kafka for event processing/background jobs; integrate
-- [ ] Redis/Dragonfly: session management
-- [ ] Redis/Dragonfly: CQRS read-model cache layer
+- [x] Choose NATS JetStream vs Kafka for event processing/background jobs; integrate
+      (decision: NATS JetStream — `crates/tpt-bus`, in-memory + `nats` backend)
+- [x] Redis/Dragonfly: session management (`crates/tpt-cache` `SessionStore`,
+      in-memory + `redis` backend)
+- [x] Redis/Dragonfly: CQRS read-model cache layer (`crates/tpt-cache` `ReadModelCache`,
+      in-memory + `redis` backend)
 
 ### Integration
 - [x] Axum + `tpt-tenant` + `tpt-ledger` server skeleton (`examples/server`, in-memory store)
@@ -114,31 +117,40 @@
 
 ## Phase 4: Reference Implementations (Months 10-14)
 ### Sprint A: 3PL/WMS
-- [ ] Scaffold example app crate
-- [ ] Real-Time Inventory Engine: event-stream-based inventory (via tpt-ledger),
-       concurrent bin-location updates without row-locking, concurrency tests
-- [ ] Wave & Route Optimization: picker path algorithm, benchmark vs naive/batch approach
-- [ ] IoT Ingestion: MQTT integration (conveyor sensors/RFID gates), high-throughput
-       pipeline, load test (thousands of msgs/sec)
-- [ ] Wasm routing plugins: WIT contract for routing, example plugins (Zone Picking,
-       Wave Picking, union break-routing rule), dynamic per-client plugin swap test
+- [x] Scaffold example app crate (`examples/wms`)
+- [x] Real-Time Inventory Engine: event-stream-based inventory (via tpt-ledger),
+       sharded concurrent bin-location updates without a global row lock, optimistic
+       concurrency, CQRS read-model replay + `tpt-cache`, replenishment jobs on `tpt-bus`,
+       concurrency tests
+- [x] Wave & Route Optimization: picker-path strategies (naive / nearest-neighbor /
+       batch / S-shaped), distance comparison, benchmark vs naive (`#[ignore]` test)
+- [x] IoT Ingestion: transport-agnostic high-throughput pipeline in `examples/wms/src/ingest.rs`
+       (decode RFID/weight frames, back-pressured batching onto `tpt-bus`, optional `mqtt`
+       feature bridging `rumqttc`), load test (`#[ignore]`; thousands of msgs/sec)
+- [x] Wasm routing plugins: `examples/plugins/routing` guest (Zone/Wave picking decision via
+       host `erp` reads), componentizes + validates against the `plugin` world; dynamic per-client
+       swap proven by `tpt-wasm` `PluginHandle::swap_module` host test (`tests/swap.rs`)
 - [ ] Leptos UI: warehouse picker/operator view
 - [ ] Engage logistics domain expert to validate business rules/workflows
 
 ### Sprint B: Manufacturing/MES
-- [ ] Scaffold example app crate
-- [ ] Parallel MRP Engine: BOM tree model, rayon-based parallel explosion, shortage/lead-time
-       calc, benchmark (4,000-part BOM in milliseconds)
-- [ ] WIP State Machine: shop-floor item states via tpt-primitives StateMachine
+- [x] Scaffold example app crate (`examples/mes`)
+- [x] Parallel MRP Engine: BOM tree model, rayon-based parallel explosion, shortage/lead-time
+       calc, benchmark (4,000-part BOM; `cargo test -p mes --release -- --ignored`)
+- [x] WIP State Machine: shop-floor item states via tpt-primitives StateMachine
        (e.g. Machined -> Assembled), prerequisite-verification tests
-- [ ] Machine Telemetry & OEE: CNC/PLC ingestion, TimescaleDB storage, real-time OEE calc
-- [ ] Wasm QC plugins: WIT contract, example QC tolerance check, example telemetry parser,
-       edge-node deploy test (microsecond evaluation, no server restart)
+- [x] Machine Telemetry & OEE: `examples/mes/src/oee.rs` (Availability×Performance×Quality)
+       + `telemetry.rs` (CNC/PLC sample ingestion, `TelemetryStore` trait + in-memory impl,
+       live OEE); TimescaleDB kept behind the `TelemetryStore` trait for later drop-in
+- [x] Wasm QC plugins: `examples/plugins/qc` guest (QC tolerance check + telemetry parser),
+       componentizes + validates against the `plugin` world; edge deploy = `swap_module`
+       (no server restart), proven by `tpt-wasm` swap test
 - [ ] Leptos UI: shop-floor operator view (WIP/QC entry) + OEE dashboard
 - [ ] Engage manufacturing/plant domain expert to validate business rules/workflows
 
 ### Shared infra
-- [ ] Kubernetes manifests/Helm chart for auto-scaling high-throughput ingestion nodes
+- [x] Kubernetes manifests/Helm chart for auto-scaling high-throughput ingestion nodes
+       (`deploy/` chart: Deployment + HPA, NATS/Redis wiring, health probes)
 
 > **Milestone**: two production-ready, open-source reference ERPs that serve as both
 > marketing tools and stress-tests for the framework.

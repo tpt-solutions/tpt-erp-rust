@@ -52,7 +52,7 @@ impl SessionStore for InMemoryCache {
         let expires_at = ttl.map(|d| now + chrono::Duration::from_std(d).unwrap_or_default());
         let session = Session {
             id: id.clone(),
-            tenant: tenant.clone(),
+            tenant,
             data,
             created_at: now,
             expires_at,
@@ -126,7 +126,7 @@ impl ReadModelCache for InMemoryCache {
         key: &str,
     ) -> Result<Option<Value>, CacheError> {
         let mut inner = self.inner.lock().unwrap();
-        let k = (tenant.clone(), model.to_string(), key.to_string());
+        let k = (*tenant, model.to_string(), key.to_string());
         match inner.models.get(&k) {
             Some((v, Some(exp))) if *exp <= Utc::now() => {
                 inner.models.remove(&k);
@@ -149,7 +149,7 @@ impl ReadModelCache for InMemoryCache {
             ttl.map(|d| Utc::now() + chrono::Duration::from_std(d).unwrap_or_default());
         let mut inner = self.inner.lock().unwrap();
         inner.models.insert(
-            (tenant.clone(), model.to_string(), key.to_string()),
+            (*tenant, model.to_string(), key.to_string()),
             (value, expires_at),
         );
         Ok(())
@@ -164,7 +164,7 @@ impl ReadModelCache for InMemoryCache {
         let mut inner = self.inner.lock().unwrap();
         inner
             .models
-            .remove(&(tenant.clone(), model.to_string(), key.to_string()));
+            .remove(&(*tenant, model.to_string(), key.to_string()));
         Ok(())
     }
 

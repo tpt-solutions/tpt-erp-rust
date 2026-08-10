@@ -1,0 +1,69 @@
+/// Versioned host-guest contract for TPT ERP plugins.
+///
+/// A plugin is a WebAssembly component that *computes*. It may read
+/// ERP data through the host-provided `erp` interface, but it has no
+/// direct access to files, sockets, or the host clock — the host never
+/// links WASI into the guest, so a plugin is computation-only by
+/// construction.
+///
+/// Versioning: the package carries a semver (`@1.0.0`). A guest built
+/// against an older `erp` world keeps running against a forward-compatible
+/// host because the host implements every import; new host functions are
+/// added in new worlds (`erp@2`) rather than mutating `erp@1`.
+package tpt:erp@1.0.0;
+
+/// Read-only view of ERP data the host exposes to plugins.
+///
+/// Every function is fallible: the host returns `err` when the tenant
+/// has no entitlement to the data, the entity does not exist, or the
+/// read-model is temporarily unavailable. Plugins must handle errors
+/// gracefully and never assume a call succeeds.
+interface erp {
+    /// A decimal money amount, sent across the boundary as major + minor
+    /// (e.g. dollars + 1/10_000ths) to avoid floating-point drift and to
+    /// stay portable across guest languages that lack a 128-bit decimal.
+    record money {
+        /// Integer major units (whole currency units).
+        major: s64,
+        /// Fractional units in 1/10_000ths (4 decimal places).
+        minor: s64,
+    }
+
+    /// A ledger account identifier, opaque to the guest.
+    type account-id = string;
+
+    /// A product/SKU identifier, opaque to the guest.
+    type sku = string;
+
+    /// Error surfaced when a host read fails.
+    variant error {
+        /// The requested entity does not exist.
+        not-found,
+        /// The tenant is not entitled to read this data.
+        forbidden,
+        /// Transient host-side failure; the plugin may retry later.
+        unavailable,
+    }
+
+    /// Current balance of an account, or an error.
+    get-account-balance: func(account: account-id) -> result<money, error>;
+
+    /// On-hand quantity (in base units) for a SKU, or an error.
+    get-stock-level: func(item: sku) -> result<u64, error>;
+
+    /// Tenant the plugin is currently executing for (empty if unknown).
+    current-tenant: func() -> string;
+}
+
+/// The plugin world. A compiled plugin component must export `run`,
+/// which the host invokes to obtain the plugin's output. The only import
+/// is `erp` — never `wasi:*` — so a correctly built guest is
+/// computation-only.
+world plugin {
+    import erp;
+
+    /// Entry point: compute and return structured plugin output (e.g.
+    /// a JSON string). On failure the guest returns an error string,
+    /// surfaced to the host as [`RuntimeError::PluginError`].
+    export run: func(input: string) -> result<string, string>;
+}
