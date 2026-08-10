@@ -1254,6 +1254,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "gl"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "futures",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tpt-erp-bus",
+ "tpt-erp-cache",
+ "tpt-erp-ledger",
+ "tpt-erp-primitives",
+ "tpt-erp-tenant",
+ "uuid",
+]
+
+[[package]]
+name = "gl-ui"
+version = "0.1.0"
+dependencies = [
+ "gl",
+ "leptos",
+ "rust_decimal",
+ "serde",
+ "tpt-erp-ledger",
+ "tpt-erp-primitives",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2145,6 +2177,39 @@ checksum = "64b94982fe39a861561cf67ff17a7849f2cedadbbad960a797634032b7abb998"
 dependencies = [
  "serde",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "oms"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "chrono",
+ "futures",
+ "gl",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tpt-erp-bus",
+ "tpt-erp-cache",
+ "tpt-erp-entity",
+ "tpt-erp-ledger",
+ "tpt-erp-primitives",
+ "tpt-erp-tenant",
+ "tpt-erp-wasm",
+ "uuid",
+]
+
+[[package]]
+name = "oms-ui"
+version = "0.1.0"
+dependencies = [
+ "leptos",
+ "serde",
+ "tpt-erp-primitives",
 ]
 
 [[package]]

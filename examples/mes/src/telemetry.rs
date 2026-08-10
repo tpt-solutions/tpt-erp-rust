@@ -86,11 +86,12 @@ impl InMemoryTelemetryStore {
 impl TelemetryStore for InMemoryTelemetryStore {
     fn record(&self, sample: &TelemetrySample) {
         let mut states = self.states.lock().unwrap();
-        let s = states.entry(match sample {
-            TelemetrySample::Cycle { machine, .. } => machine.clone(),
-            TelemetrySample::RunTime { machine, .. } => machine.clone(),
-        })
-        .or_default();
+        let s = states
+            .entry(match sample {
+                TelemetrySample::Cycle { machine, .. } => machine.clone(),
+                TelemetrySample::RunTime { machine, .. } => machine.clone(),
+            })
+            .or_default();
         match sample {
             TelemetrySample::Cycle { good, .. } => {
                 s.total_count += 1;
@@ -143,9 +144,21 @@ mod tests {
     #[test]
     fn decode_handles_cycle_and_runtime() {
         let c = decode_telemetry(br#"{"machine":"M1","type":"cycle","good":false}"#).unwrap();
-        assert_eq!(c, TelemetrySample::Cycle { machine: "M1".into(), good: false });
+        assert_eq!(
+            c,
+            TelemetrySample::Cycle {
+                machine: "M1".into(),
+                good: false
+            }
+        );
         let r = decode_telemetry(br#"{"machine":"M1","type":"runtime","seconds":5}"#).unwrap();
-        assert_eq!(r, TelemetrySample::RunTime { machine: "M1".into(), seconds: 5.0 });
+        assert_eq!(
+            r,
+            TelemetrySample::RunTime {
+                machine: "M1".into(),
+                seconds: 5.0
+            }
+        );
         assert!(decode_telemetry(b"junk").is_none());
     }
 
@@ -162,9 +175,21 @@ mod tests {
             ideal_cycle_time_secs: 1.0,
         };
         let oee = store.oee("M1", cfg).unwrap();
-        assert!((oee.availability - 0.90).abs() < 1e-9, "avail {}", oee.availability);
-        assert!((oee.performance - 410.0 / 432.0).abs() < 1e-9, "perf {}", oee.performance);
-        assert!((oee.quality - 406.0 / 410.0).abs() < 1e-9, "qual {}", oee.quality);
+        assert!(
+            (oee.availability - 0.90).abs() < 1e-9,
+            "avail {}",
+            oee.availability
+        );
+        assert!(
+            (oee.performance - 410.0 / 432.0).abs() < 1e-9,
+            "perf {}",
+            oee.performance
+        );
+        assert!(
+            (oee.quality - 406.0 / 410.0).abs() < 1e-9,
+            "qual {}",
+            oee.quality
+        );
         assert!((oee.oee - 0.8458333).abs() < 1e-4, "oee {}", oee.oee);
     }
 

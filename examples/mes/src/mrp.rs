@@ -165,10 +165,7 @@ mod tests {
             qty_per: 1,
             lead_time_days: 1,
             on_hand: 0,
-            children: vec![
-                leaf(bolt, 2, 3, 1),
-                leaf(washer, 4, 2, 0),
-            ],
+            children: vec![leaf(bolt, 2, 3, 1), leaf(washer, 4, 2, 0)],
         };
         let plan = MrpEngine::explode(&root, 10);
         let bolt_req = plan.requirements[&bolt];
@@ -239,6 +236,9 @@ mod tests {
         let elapsed = start.elapsed();
         println!("exploded 4000-part BOM in {elapsed:?}");
         assert!(plan.requirements.len() <= 4000);
-        assert!(elapsed.as_millis() < 500, "expected <500ms, got {elapsed:?}");
+        assert!(
+            elapsed.as_millis() < 500,
+            "expected <500ms, got {elapsed:?}"
+        );
     }
 }

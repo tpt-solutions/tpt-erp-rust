@@ -45,9 +45,8 @@ impl ProductionRun {
     /// Compute the OEE breakdown for this run.
     pub fn oee(&self) -> Oee {
         let availability = clamp01(self.run_time_secs / self.planned_time_secs);
-        let performance = clamp01(
-            (self.ideal_cycle_time_secs * self.total_count as f64) / self.run_time_secs,
-        );
+        let performance =
+            clamp01((self.ideal_cycle_time_secs * self.total_count as f64) / self.run_time_secs);
         let quality = clamp01(self.good_count as f64 / self.total_count as f64);
         Oee {
             availability,
@@ -87,7 +86,7 @@ mod tests {
             run_time_secs: 432.0, // 90% availability
             ideal_cycle_time_secs: 1.0,
             total_count: 410, // 410 units in 432s
-            good_count: 406, // 406 good of 410
+            good_count: 406,  // 406 good of 410
         };
         let oee = run.oee();
         assert!((oee.availability - 0.90).abs() < 1e-9);

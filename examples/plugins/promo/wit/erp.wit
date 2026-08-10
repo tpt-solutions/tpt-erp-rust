@@ -1,0 +1,33 @@
+package tpt:erp@1.0.0;
+
+/// Read-only view of ERP data the host exposes to plugins.
+///
+/// Every function is fallible: the host returns `err` when the tenant
+/// has no entitlement to the data, the entity does not exist, or the
+/// read-model is temporarily unavailable. Plugins must handle errors
+/// gracefully and never assume a call succeeds.
+interface erp {
+    record money {
+        major: s64,
+        minor: s64,
+    }
+
+    type account-id = string;
+    type sku = string;
+
+    variant error {
+        not-found,
+        forbidden,
+        unavailable,
+    }
+
+    get-account-balance: func(account: account-id) -> result<money, error>;
+    get-stock-level: func(item: sku) -> result<u64, error>;
+    current-tenant: func() -> string;
+}
+
+world plugin {
+    import erp;
+
+    export run: func(input: string) -> result<string, string>;
+}

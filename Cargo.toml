@@ -15,8 +15,12 @@ members = [
     "examples/server",
     "examples/wms",
     "examples/mes",
+    "examples/gl",
+    "examples/oms",
+    "examples/oms-ui",
     "examples/wms-ui",
     "examples/mes-ui",
+    "examples/gl-ui",
 ]
 
 exclude = [
@@ -44,6 +48,7 @@ tpt-erp-entity = { path = "crates/tpt-erp-entity", version = "0.1.0" }
 tpt-erp-wasm = { path = "crates/tpt-erp-wasm", version = "0.1.0" }
 tpt-erp-bus = { path = "crates/tpt-erp-bus", version = "0.1.0" }
 tpt-erp-cache = { path = "crates/tpt-erp-cache", version = "0.1.0" }
+gl = { path = "examples/gl", version = "0.1.0" }
 
 # Common third-party deps
 rust_decimal = { version = "1", features = ["serde", "maths"] }
@@ -61,6 +66,8 @@ uuid = { version = "1", features = ["v4", "v5", "serde"] }
 async-trait = "0.1"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "uuid", "macros"] }
 leptos = { version = "0.7", default-features = false }
+rayon = "1"
+rumqttc = { version = "0.24", features = ["use-rustls"] }
 
 [workspace.lints.rust]
 unsafe_code = "warn"

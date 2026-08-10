@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use tpt_erp_wasm::host::{HostContext, TptHost};
-use tpt_erp_wasm::{Money, PluginRuntime, RuntimeError, RuntimeConfig};
+use tpt_erp_wasm::{Money, PluginRuntime, RuntimeConfig, RuntimeError};
 
 #[derive(Clone)]
 struct Ctx {
@@ -70,18 +70,14 @@ fn hot_swap_without_restart() {
         .unwrap();
 
     // First call on the originally loaded code.
-    let out1 = plugin
-        .run(r#"{"account":"acc-1","amount":10000}"#)
-        .unwrap();
+    let out1 = plugin.run(r#"{"account":"acc-1","amount":10000}"#).unwrap();
     assert!(out1.contains("final_amount"));
 
     // Hot-swap the running code in place (here reloading the same bytes, i.e. a
     // version/config reload). The host is never recreated; in-flight references stay
     // valid and new calls use the swapped component.
     plugin.swap_module(&wasm).unwrap();
-    let out2 = plugin
-        .run(r#"{"account":"acc-1","amount":10000}"#)
-        .unwrap();
+    let out2 = plugin.run(r#"{"account":"acc-1","amount":10000}"#).unwrap();
     assert!(out2.contains("final_amount"));
 
     // A non-plugin payload must be rejected by swap_module, never crash the host.
@@ -91,7 +87,10 @@ fn hot_swap_without_restart() {
         Err(RuntimeError::InvalidPlugin(_))
     ));
 
-    let _ = TptHost::new(Arc::new(Ctx { balance: None }), wasmtime::StoreLimits::default());
+    let _ = TptHost::new(
+        Arc::new(Ctx { balance: None }),
+        wasmtime::StoreLimits::default(),
+    );
 }
 
 /// End-to-end execution of the example `routing` plugin: it reads host stock (here
@@ -116,4 +115,41 @@ fn routing_plugin_executes_end_to_end() {
     // With no host stock the decision defaults to wave picking.
     assert!(out.contains("strategy"), "unexpected output: {out}");
     assert!(out.contains("wave"), "expected wave strategy, got: {out}");
+}
+
+/// End-to-end execution of the example `tax` plugin: it reads an account balance from
+/// the host via `erp` and returns a jurisdiction tax tier. Proves the GL tax plugin runs
+/// under the sandbox and uses the computation-only host-binding contract.
+#[test]
+fn tax_plugin_executes_end_to_end() {
+    let Some(path) = example_wasm("tax") else {
+        eprintln!("skipping: tax.wasm not built (run `tpt plugin build`)");
+        return;
+    };
+    let wasm = std::fs::read(&path).expect("read component bytes");
+
+    let rt = PluginRuntime::new(RuntimeConfig::default()).unwrap();
+    let mut plugin = rt
+        .load(
+            "tax",
+            &wasm,
+            Box::new(Ctx {
+                balance: Some(Money::new(1000, 0)),
+            }),
+        )
+        .unwrap();
+
+    let out = plugin
+        .run(r#"{"account":"acc-1","jurisdiction":"eu-standard"}"#)
+        .expect("tax plugin should run");
+    // 1000 * 0.21 (eu-standard) = 210 estimated tax.
+    assert!(out.contains("tax_tier"), "unexpected output: {out}");
+    assert!(
+        out.contains("eu-standard"),
+        "expected eu-standard tier, got: {out}"
+    );
+    assert!(
+        out.contains("210"),
+        "expected estimated_tax ~210 for 1000 @ 21%, got: {out}"
+    );
 }

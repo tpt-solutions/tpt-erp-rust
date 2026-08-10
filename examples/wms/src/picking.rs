@@ -92,7 +92,8 @@ pub fn batch_route(locs: &[BinLocation]) -> Vec<usize> {
 pub fn s_shape_route(locs: &[BinLocation]) -> Vec<usize> {
     let n = locs.len();
     // Group indices by aisle.
-    let mut by_aisle: std::collections::BTreeMap<i32, Vec<usize>> = std::collections::BTreeMap::new();
+    let mut by_aisle: std::collections::BTreeMap<i32, Vec<usize>> =
+        std::collections::BTreeMap::new();
     for (i, l) in locs.iter().enumerate() {
         by_aisle.entry(l.x).or_default().push(i);
     }
@@ -152,7 +153,9 @@ mod tests {
         // Deterministic LCG so benchmarks/tests are reproducible.
         let mut state = seed.wrapping_add(0x9E37_79B9);
         let mut rng = || {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             (state >> 33) as u32
         };
         (0..n)

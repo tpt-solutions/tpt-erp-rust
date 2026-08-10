@@ -10,6 +10,6 @@
 //! - [`picking`] — wave & route optimization: picker-path strategies (naive, nearest
 //!   neighbor, batch, S-shaped) compared by travel distance.
 
-pub mod inventory;
 pub mod ingest;
+pub mod inventory;
 pub mod picking;

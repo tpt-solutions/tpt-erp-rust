@@ -157,11 +157,7 @@ impl InventoryEngine {
     }
 
     /// Append a movement event, returning the new on-hand quantity.
-    pub async fn apply(
-        &self,
-        key: StockKey,
-        movement: Movement,
-    ) -> Result<i64, InventoryError> {
+    pub async fn apply(&self, key: StockKey, movement: Movement) -> Result<i64, InventoryError> {
         let new_qty = {
             let idx = Self::shard_index(&key);
             let mut shard = self.shards[idx].lock().unwrap();
@@ -264,9 +260,7 @@ impl InventoryEngine {
     /// Rebuild the on-hand read model from the event log from scratch (CQRS replay),
     /// writing results into the attached cache. This proves the read model can never
     /// silently drift from the ledger of record.
-    pub async fn rebuild_read_models(
-        &self,
-    ) -> Result<HashMap<StockKey, i64>, InventoryError> {
+    pub async fn rebuild_read_models(&self) -> Result<HashMap<StockKey, i64>, InventoryError> {
         let mut all: Vec<StoredEvent<StockKey>> = Vec::new();
         for shard in &self.shards {
             let s = shard.lock().unwrap();
@@ -428,4 +422,3 @@ mod tests {
         }
     }
 }
-

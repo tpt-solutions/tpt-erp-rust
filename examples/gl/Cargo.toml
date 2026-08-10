@@ -1,6 +1,6 @@
 [package]
-name = "wms"
-description = "Reference 3PL/WMS implementation on TPT ERP: real-time event-sourced inventory + wave/route optimization."
+name = "gl"
+description = "Reference Accounting/GL implementation on TPT ERP: multi-currency event-sourced double-entry journal, FX revaluation, period-end close, and CQRS financial reporting."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -21,14 +21,8 @@ serde_json = { workspace = true }
 rust_decimal = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
+chrono = { workspace = true }
 futures = "0.3"
-
-# Optional MQTT ingress (feature `mqtt`). The core ingestion pipeline has no
-# transport dependency; this only adds the broker adapter.
-rumqttc = { workspace = true, optional = true }
-
-[features]
-mqtt = ["dep:rumqttc"]
 
 [dev-dependencies]
 uuid = { workspace = true }

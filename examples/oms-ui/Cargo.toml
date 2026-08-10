@@ -1,0 +1,32 @@
+[package]
+name = "oms-ui"
+description = "Leptos storefront/checkout view for the OMS reference ERP: live saga-status badges."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Default (host) build uses SSR mode so `cargo build` works on the dev machine.
+# For the real WASM build run:
+#   cargo build -p oms-ui --no-default-features --features "hydrate"
+default = ["ssr"]
+ssr = ["leptos/ssr"]
+hydrate = ["leptos/hydrate", "leptos/csr"]
+
+[dependencies]
+tpt-erp-primitives = { workspace = true }
+serde = { workspace = true }
+# Default (host) build uses SSR mode so `cargo build` works on the dev machine.
+# For the real WASM build run:
+#   cargo build -p oms-ui --no-default-features --features "hydrate"
+leptos = { workspace = true, features = ["ssr"] }
+
+[lints]
+workspace = true

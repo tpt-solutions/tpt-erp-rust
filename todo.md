@@ -148,9 +148,79 @@
 - [x] Leptos UI: shop-floor operator view (WIP/QC entry) + OEE dashboard (`examples/mes-ui`)
 - [ ] Engage manufacturing/plant domain expert to validate business rules/workflows
 
+### Sprint C: Accounting/GL
+- [x] Scaffold example app crate (`examples/gl`)
+- [x] Multi-Currency Journal Engine: event-sourced double-entry posting (via
+       tpt-erp-ledger), sharded concurrent per-account writes without a global row lock,
+       optimistic concurrency, CQRS balance projection + `tpt-erp-cache`, concurrency tests
+- [x] FX & Revaluation: explicit typed cross-currency conversion (`Money<From> ->
+       Money<To>`), point-in-time rate table, period-end account revaluation
+- [x] Period-End Close: StateMachine-derived close workflow (Open -> SoftClose ->
+       Reconciling -> Closed -> Locked, reopen branch), trial-balance gate before Closed,
+       generated closing/reversing entries, `gl.period_closed` job on `tpt-erp-bus`
+- [x] Financial Reporting: TptEntity/TptApi chart of accounts, CQRS-replayed Trial
+       Balance/Income Statement/Balance Sheet read models cached via `tpt-erp-cache`
+- [x] Wasm tax plugin: `examples/plugins/tax` guest (jurisdiction tax-tier via host
+       `erp` balance read), componentizes + validates against the `plugin` world
+- [x] Leptos UI: journal-entry + trial-balance view (`examples/gl-ui`)
+- [ ] Engage accounting/controller domain expert to validate business rules/workflows
+
+### Sprint D: E-commerce/OMS
+- [x] Scaffold example app crate (`examples/oms`)
+- [x] TptEntity/TptApi Catalog: Product/Order CRUD with role-differentiated
+        `AuthPolicy` (customer vs. staff), pagination/filtering/RBAC
+- [x] Reservation Engine: event-sourced stock holds (sharded per SKU, TTL auto-release
+        via `tpt-erp-cache`), oversell-prevention concurrency tests
+- [x] Order Saga: Reserve -> Pay -> Fulfill -> Ship via StateMachine + hand-rolled
+        compensating-transaction orchestrator on `tpt-erp-bus`; Pay step posts a real
+        balanced transaction through `gl::journal`
+- [x] Checkout: Axum wiring + Wasm promo plugin (per-SKU stock-aware discounting),
+        `#[ignore]`d concurrent-checkout stress test proving zero oversell end-to-end
+- [x] Wasm promo plugin: `examples/plugins/promo` guest, componentizes + validates
+- [x] Leptos UI: storefront/checkout view with live saga-status badges (`examples/oms-ui`)
+- [ ] Engage e-commerce/retail-ops domain expert to validate business rules/workflows
+
+### Sprint E: Retail/POS
+- [ ] Scaffold example app crate (`examples/pos`)
+- [ ] Transaction State Machine: Cart -> Tendering -> Authorized -> Captured (void/
+       refund branches), line items + tax in `Money<Usd>`
+- [ ] Split Tender & Drawer Reconciliation: `Money::allocate`-based multi-tender
+       splitting, expected-vs-counted cash-drawer math
+- [ ] Offline-First Sync: local event-sourced transaction log, idempotent
+       reconciliation replay to the central store on reconnect, `tpt-erp-cache`
+       sync-checkpoint, `pos.synced` job on `tpt-erp-bus`
+- [ ] Pricing plugin integration: `pos::pricing` gives `examples/plugins/pricing` a real
+       backend home (balance-tiered discount via `tpt-erp-wasm`), hot-swap proven by
+       `PluginHandle::swap_module` test
+- [ ] Leptos UI: cashier terminal view with offline/online indicator (`examples/pos-ui`)
+- [ ] Engage retail/store-ops domain expert to validate business rules/workflows
+
+### Sprint F: Fleet/TMS
+- [ ] Scaffold example app crate (`examples/tms`)
+- [ ] GPS Telemetry Ingestion: transport-agnostic pipeline (decode GPS frames,
+       back-pressured batching onto `tpt-erp-bus`, optional `mqtt` feature), load test
+- [ ] Geofencing: point-in-polygon/circle containment + haversine distance, zone
+       entry/exit events on `tpt-erp-bus`
+- [ ] Route Optimization: nearest-neighbor + rayon-parallel 2-opt improvement,
+       benchmark vs. naive (`#[ignore]` test), Wasm dispatch-plugin stop scoring
+- [ ] Driver HOS State Machine: OffDuty/OnDuty/Driving/SleeperBerth via
+       tpt-erp-primitives StateMachine + 11/14-hour rule-check layer, tests
+- [ ] Wasm dispatch plugin: `examples/plugins/dispatch` guest, componentizes + validates
+- [ ] Leptos UI: dispatcher live-map/route-plan view (`examples/tms-ui`)
+- [ ] Engage fleet/logistics domain expert to validate business rules/workflows
+
 ### Shared infra
 - [x] Kubernetes manifests/Helm chart for auto-scaling high-throughput ingestion nodes
        (`deploy/` chart: Deployment + HPA, NATS/Redis wiring, health probes)
 
-> **Milestone**: two production-ready, open-source reference ERPs that serve as both
-> marketing tools and stress-tests for the framework.
+### Workspace/docs housekeeping for Sprints C-F
+- [x] Root `Cargo.toml`: add `examples/gl`, `examples/oms`, `examples/pos`, `examples/tms`
+       and their `-ui` crates to `members`; promote `rayon` (and `rumqttc`'s pin) to
+       `[workspace.dependencies]`
+- [x] Root `README.md`: update the "Reference implementations" status bullet to list all
+       six domains (3PL/WMS, Manufacturing/MES, Accounting/GL, E-commerce/OMS, Retail/POS,
+       Fleet/TMS)
+
+> **Milestone**: six production-ready, open-source reference ERPs (3PL/WMS,
+> Manufacturing/MES, Accounting/GL, E-commerce/OMS, Retail/POS, Fleet/TMS) that serve as
+> both marketing tools and stress-tests for the framework.

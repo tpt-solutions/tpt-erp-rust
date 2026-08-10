@@ -121,7 +121,9 @@ pub fn synthetic_source(count: usize, seed: u64) -> impl Stream<Item = Vec<u8>> 
     use futures::stream;
     let mut state = seed.wrapping_add(0x1234_5678);
     let mut rng = move || {
-        state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         state
     };
     stream::iter((0..count).map(move |i| {
@@ -143,15 +145,13 @@ pub mod mqtt {
     //! This is feature-gated (`--features mqtt`) because it pulls in the MQTT client; the
     //! core pipeline above has no transport dependency.
     use futures::stream::{self, Stream};
-    use rumqttc::{Event, Incoming, Packet, Request, QoS};
+    use rumqttc::{Event, Incoming, Packet, QoS, Request};
 
     /// Adapt an `rumqttc` event loop into a stream of raw payload bytes.
     ///
     /// Only `Publish` packets are forwarded; everything else (ack, suback, ping) is
     /// ignored. The returned stream is finite: it ends when the event loop ends.
-    pub fn mqtt_source(
-        mut event_loop: rumqttc::EventLoop,
-    ) -> impl Stream<Item = Vec<u8>> + '_ {
+    pub fn mqtt_source(mut event_loop: rumqttc::EventLoop) -> impl Stream<Item = Vec<u8>> + '_ {
         stream::unfold(event_loop, |mut el| async move {
             loop {
                 match el.poll().await {
@@ -200,7 +200,10 @@ mod tests {
                 grams: 1234
             }
         );
-        assert_eq!(decode(b"not json"), IngestEvent::Unparsed(b"not json".to_vec()));
+        assert_eq!(
+            decode(b"not json"),
+            IngestEvent::Unparsed(b"not json".to_vec())
+        );
     }
 
     #[tokio::test]
@@ -245,7 +248,10 @@ mod tests {
                 stats.elapsed
             );
             assert_eq!(stats.decoded, count as u64);
-            assert!(per_sec > 1_000.0, "expected >1000 msg/sec, got {per_sec:.0}");
+            assert!(
+                per_sec > 1_000.0,
+                "expected >1000 msg/sec, got {per_sec:.0}"
+            );
         });
     }
 }

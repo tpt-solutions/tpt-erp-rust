@@ -98,7 +98,8 @@ fn batch_route(locs: &[PickLoc]) -> Vec<usize> {
 }
 
 fn s_shape_route(locs: &[PickLoc]) -> Vec<usize> {
-    let mut by_aisle: std::collections::BTreeMap<i32, Vec<usize>> = std::collections::BTreeMap::new();
+    let mut by_aisle: std::collections::BTreeMap<i32, Vec<usize>> =
+        std::collections::BTreeMap::new();
     for (i, l) in locs.iter().enumerate() {
         by_aisle.entry(l.x).or_default().push(i);
     }

@@ -34,7 +34,10 @@ fn tpt_bin() -> PathBuf {
 fn build_validate_run_pricing_plugin() {
     let root = repo_root();
     let tpt = tpt_bin();
-    assert!(tpt.exists(), "build the CLI first: cargo build -p tpt-erp-cli");
+    assert!(
+        tpt.exists(),
+        "build the CLI first: cargo build -p tpt-erp-cli"
+    );
 
     let plugin = root.join("examples/plugins/pricing");
     let wasm = plugin.join("pricing.wasm");

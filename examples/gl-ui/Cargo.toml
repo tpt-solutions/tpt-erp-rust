@@ -1,0 +1,32 @@
+[package]
+name = "gl-ui"
+description = "Leptos operator UI for the GL reference ERP: journal-entry and trial-balance views."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Default (host) build uses SSR mode so `cargo build` works on the dev machine.
+# For the real WASM build run:
+#   cargo build -p gl-ui --no-default-features --features "hydrate"
+default = ["ssr"]
+ssr = ["leptos/ssr"]
+hydrate = ["leptos/hydrate", "leptos/csr"]
+
+[dependencies]
+tpt-erp-primitives = { workspace = true }
+tpt-erp-ledger = { workspace = true }
+gl = { workspace = true }
+serde = { workspace = true }
+rust_decimal = { workspace = true }
+leptos = { workspace = true, features = ["ssr"] }
+
+[lints]
+workspace = true
