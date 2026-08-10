@@ -5,8 +5,8 @@
 //!
 //! - [`inventory`] — a real-time, event-sourced inventory engine. Writes append movement
 //!   events sharded by bin, so concurrent bin updates never block on a global lock. On-hand
-//!   is a CQRS read model rebuilt from the event log, cached per tenant via `tpt-cache`, and
-//!   replenishment is emitted as a background job on `tpt-bus`.
+//!   is a CQRS read model rebuilt from the event log, cached per tenant via `tpt-erp-cache`, and
+//!   replenishment is emitted as a background job on `tpt-erp-bus`.
 //! - [`picking`] — wave & route optimization: picker-path strategies (naive, nearest
 //!   neighbor, batch, S-shaped) compared by travel distance.
 

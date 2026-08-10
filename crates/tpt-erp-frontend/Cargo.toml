@@ -1,0 +1,30 @@
+[package]
+name = "tpt-erp-frontend"
+readme = "README.md"
+keywords = ["erp", "leptos", "wasm", "frontend", "web"]
+categories = ["gui", "wasm", "web-programming"]
+
+description = "Leptos WASM frontend for TPT ERP. Demonstrates sharing tpt-erp-primitives types with the backend."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tpt-erp-primitives = { workspace = true }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+# Default (host) build uses SSR mode so `cargo build` works on the dev machine.
+# For the real WASM build run:
+#   cargo build -p tpt-erp-frontend --no-default-features --features "hydrate"
+# (the `view!` macro is enabled by the mode feature: ssr / hydrate / csr)
+leptos = { workspace = true, features = ["ssr"] }
+
+[lints]
+workspace = true

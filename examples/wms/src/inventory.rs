@@ -7,18 +7,18 @@
 //!
 //! The running on-hand quantity is a CQRS read model that can be rebuilt at any time
 //! by replaying the event log (`rebuild_read_models`). It is cached per tenant via
-//! `tpt-cache`, and falling below a reorder point publishes a `jobs.replenish`
-//! background job on `tpt-bus`.
+//! `tpt-erp-cache`, and falling below a reorder point publishes a `jobs.replenish`
+//! background job on `tpt-erp-bus`.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tpt_cache::{CacheError, ReadModelCache};
-use tpt_ledger::{Event, EventStore, Projector, StoredEvent, replay};
-use tpt_primitives::{Entity, Id};
-use tpt_tenant::{TenantId, TenantSlug};
+use tpt_erp_cache::{CacheError, ReadModelCache};
+use tpt_erp_ledger::{Event, EventStore, Projector, StoredEvent, replay};
+use tpt_erp_primitives::{Entity, Id};
+use tpt_erp_tenant::{TenantId, TenantSlug};
 
 /// A stock-keeping unit.
 #[derive(Debug)]
@@ -88,9 +88,9 @@ pub enum InventoryError {
     #[error("bus backend error: {0}")]
     Bus(String),
     #[error("projection replay failed: {0}")]
-    Projection(#[from] tpt_ledger::ProjectionError),
+    Projection(#[from] tpt_erp_ledger::ProjectionError),
     #[error("event store error: {0}")]
-    Store(#[from] tpt_ledger::EventStoreError),
+    Store(#[from] tpt_erp_ledger::EventStoreError),
 }
 
 const SHARDS: usize = 64;
@@ -114,13 +114,13 @@ impl Shard {
 ///
 /// * Writes append movement events sharded by [`StockKey`], so concurrent updates to
 ///   different bins never contend on a global lock.
-/// * On-hand is a derived read model, optionally cached per tenant (`tpt-cache`).
-/// * Crossing the reorder point emits a `jobs.replenish` job (`tpt-bus`).
+/// * On-hand is a derived read model, optionally cached per tenant (`tpt-erp-cache`).
+/// * Crossing the reorder point emits a `jobs.replenish` job (`tpt-erp-bus`).
 pub struct InventoryEngine {
     shards: Vec<Mutex<Shard>>,
     tenant: TenantId,
     reorder_point: i64,
-    bus: Option<Box<dyn tpt_bus::EventBus>>,
+    bus: Option<Box<dyn tpt_erp_bus::EventBus>>,
     cache: Option<Box<dyn ReadModelCache>>,
     published_jobs: AtomicU64,
 }
@@ -139,7 +139,7 @@ impl InventoryEngine {
     }
 
     /// Attach a background-job bus; replenishment jobs are published there.
-    pub fn with_bus(mut self, bus: Box<dyn tpt_bus::EventBus>) -> Self {
+    pub fn with_bus(mut self, bus: Box<dyn tpt_erp_bus::EventBus>) -> Self {
         self.bus = Some(bus);
         self
     }
@@ -308,7 +308,7 @@ pub struct InventoryProjection {
 impl Projector for InventoryProjection {
     type Event = (StockKey, Movement);
 
-    async fn apply(&mut self, event: &Self::Event) -> Result<(), tpt_ledger::ProjectionError> {
+    async fn apply(&mut self, event: &Self::Event) -> Result<(), tpt_erp_ledger::ProjectionError> {
         let (key, movement) = event;
         *self.on_hand.entry(*key).or_insert(0) += movement.delta();
         Ok(())
@@ -323,8 +323,8 @@ pub fn demo_tenant() -> TenantId {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tpt_bus::memory::InMemoryBus;
-    use tpt_cache::memory::InMemoryCache;
+    use tpt_erp_bus::memory::InMemoryBus;
+    use tpt_erp_cache::memory::InMemoryCache;
 
     fn key() -> StockKey {
         StockKey {

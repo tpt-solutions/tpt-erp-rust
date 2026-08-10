@@ -1,20 +1,22 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/tpt-primitives",
-    "crates/tpt-macros",
-    "crates/tpt-ledger",
-    "crates/tpt-tenant",
-    "crates/tpt-wasm",
-    "crates/tpt-entity",
-    "crates/tpt-frontend",
-    "crates/tpt-cli",
-    "crates/tpt-cache",
-    "crates/tpt-bus",
+    "crates/tpt-erp-primitives",
+    "crates/tpt-erp-macros",
+    "crates/tpt-erp-ledger",
+    "crates/tpt-erp-tenant",
+    "crates/tpt-erp-wasm",
+    "crates/tpt-erp-entity",
+    "crates/tpt-erp-frontend",
+    "crates/tpt-erp-cli",
+    "crates/tpt-erp-cache",
+    "crates/tpt-erp-bus",
     "examples/quickstart",
     "examples/server",
     "examples/wms",
     "examples/mes",
+    "examples/wms-ui",
+    "examples/mes-ui",
 ]
 
 exclude = [
@@ -34,14 +36,14 @@ categories = ["database", "finance", "web-programming"]
 
 [workspace.dependencies]
 # Internal crates
-tpt-primitives = { path = "crates/tpt-primitives", version = "0.1.0" }
-tpt-macros = { path = "crates/tpt-macros", version = "0.1.0" }
-tpt-ledger = { path = "crates/tpt-ledger", version = "0.1.0" }
-tpt-tenant = { path = "crates/tpt-tenant", version = "0.1.0" }
-tpt-entity = { path = "crates/tpt-entity", version = "0.1.0" }
-tpt-wasm = { path = "crates/tpt-wasm", version = "0.1.0" }
-tpt-bus = { path = "crates/tpt-bus", version = "0.1.0" }
-tpt-cache = { path = "crates/tpt-cache", version = "0.1.0" }
+tpt-erp-primitives = { path = "crates/tpt-erp-primitives", version = "0.1.0" }
+tpt-erp-macros = { path = "crates/tpt-erp-macros", version = "0.1.0" }
+tpt-erp-ledger = { path = "crates/tpt-erp-ledger", version = "0.1.0" }
+tpt-erp-tenant = { path = "crates/tpt-erp-tenant", version = "0.1.0" }
+tpt-erp-entity = { path = "crates/tpt-erp-entity", version = "0.1.0" }
+tpt-erp-wasm = { path = "crates/tpt-erp-wasm", version = "0.1.0" }
+tpt-erp-bus = { path = "crates/tpt-erp-bus", version = "0.1.0" }
+tpt-erp-cache = { path = "crates/tpt-erp-cache", version = "0.1.0" }
 
 # Common third-party deps
 rust_decimal = { version = "1", features = ["serde", "maths"] }

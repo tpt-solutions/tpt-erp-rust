@@ -10,7 +10,7 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-tpt-primitives = { workspace = true }
+tpt-erp-primitives = { workspace = true }
 rayon = "1"
 rust_decimal = { workspace = true }
 thiserror = { workspace = true }

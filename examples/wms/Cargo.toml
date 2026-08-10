@@ -10,11 +10,11 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-tpt-primitives = { workspace = true }
-tpt-ledger = { workspace = true }
-tpt-bus = { workspace = true }
-tpt-cache = { workspace = true }
-tpt-tenant = { workspace = true }
+tpt-erp-primitives = { workspace = true }
+tpt-erp-ledger = { workspace = true }
+tpt-erp-bus = { workspace = true }
+tpt-erp-cache = { workspace = true }
+tpt-erp-tenant = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -7,7 +7,7 @@
 //! - `telemetry` — parse a raw CNC/PLC line (`M1,spindle,1234.5`) into structured JSON.
 //!
 //! Both run in microseconds and can be swapped per client at the edge without a
-//! server restart (see `tpt-wasm`'s `PluginHandle::swap_module`).
+//! server restart (see `tpt-erp-wasm`'s `PluginHandle::swap_module`).
 
 wit_bindgen::generate!({ world: "plugin" });
 

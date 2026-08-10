@@ -5,7 +5,7 @@
 //! S-shaped and nearest-neighbor heuristics consistently beat the naive "visit in
 //! arrival order" path, which is what makes wave picking faster than ad-hoc picking.
 
-use tpt_primitives::{Entity, Id};
+use tpt_erp_primitives::{Entity, Id};
 
 /// A physical pick location in the warehouse grid. `x` is the aisle, `y` the position
 /// along the aisle.

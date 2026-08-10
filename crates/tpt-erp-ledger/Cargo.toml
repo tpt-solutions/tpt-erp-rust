@@ -1,0 +1,27 @@
+[package]
+name = "tpt-erp-ledger"
+readme = "README.md"
+keywords = ["erp", "ledger", "accounting", "event-sourcing", "double-entry"]
+categories = ["finance", "database", "data-structures"]
+
+description = "Event-sourced double-entry ledger and CQRS projection engine for TPT ERP."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tpt-erp-primitives = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+rust_decimal = { workspace = true }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

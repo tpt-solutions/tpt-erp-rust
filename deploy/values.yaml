@@ -40,7 +40,7 @@ autoscaling:
   #       averageValue: "1000"
 
 # Environment passed to every ingestion pod. Tenant isolation is enforced at the
-# data layer (tpt-tenant + Postgres RLS), so these nodes only carry connection
+# data layer (tpt-erp-tenant + Postgres RLS), so these nodes only carry connection
 # wiring, never trust.
 env:
   RUST_LOG: "info"

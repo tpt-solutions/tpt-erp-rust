@@ -1995,8 +1995,17 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
- "tpt-primitives",
+ "tpt-erp-primitives",
  "uuid",
+]
+
+[[package]]
+name = "mes-ui"
+version = "0.1.0"
+dependencies = [
+ "leptos",
+ "serde",
+ "tpt-erp-primitives",
 ]
 
 [[package]]
@@ -2445,8 +2454,8 @@ dependencies = [
  "serde_json",
  "tokio",
  "tower",
- "tpt-entity",
- "tpt-primitives",
+ "tpt-erp-entity",
+ "tpt-erp-primitives",
 ]
 
 [[package]]
@@ -3131,9 +3140,9 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "tower",
- "tpt-ledger",
- "tpt-primitives",
- "tpt-tenant",
+ "tpt-erp-ledger",
+ "tpt-erp-primitives",
+ "tpt-erp-tenant",
  "uuid",
 ]
 
@@ -3971,7 +3980,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
-name = "tpt-bus"
+name = "tpt-erp-bus"
 version = "0.1.0"
 dependencies = [
  "async-nats",
@@ -3982,7 +3991,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tpt-cache"
+name = "tpt-erp-cache"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -3992,12 +4001,12 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
- "tpt-tenant",
+ "tpt-erp-tenant",
  "uuid",
 ]
 
 [[package]]
-name = "tpt-cli"
+name = "tpt-erp-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -4005,12 +4014,12 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "tpt-wasm",
+ "tpt-erp-wasm",
  "wit-component",
 ]
 
 [[package]]
-name = "tpt-entity"
+name = "tpt-erp-entity"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -4018,22 +4027,22 @@ dependencies = [
  "serde",
  "thiserror 2.0.20",
  "tokio",
- "tpt-macros",
- "tpt-primitives",
+ "tpt-erp-macros",
+ "tpt-erp-primitives",
 ]
 
 [[package]]
-name = "tpt-frontend"
+name = "tpt-erp-frontend"
 version = "0.1.0"
 dependencies = [
  "leptos",
  "rust_decimal",
  "serde",
- "tpt-primitives",
+ "tpt-erp-primitives",
 ]
 
 [[package]]
-name = "tpt-ledger"
+name = "tpt-erp-ledger"
 version = "0.1.0"
 dependencies = [
  "chrono",
@@ -4042,11 +4051,11 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
- "tpt-primitives",
+ "tpt-erp-primitives",
 ]
 
 [[package]]
-name = "tpt-macros"
+name = "tpt-erp-macros"
 version = "0.1.0"
 dependencies = [
  "axum",
@@ -4059,12 +4068,12 @@ dependencies = [
  "syn 2.0.119",
  "tokio",
  "tower",
- "tpt-entity",
- "tpt-primitives",
+ "tpt-erp-entity",
+ "tpt-erp-primitives",
 ]
 
 [[package]]
-name = "tpt-primitives"
+name = "tpt-erp-primitives"
 version = "0.1.0"
 dependencies = [
  "rust_decimal",
@@ -4072,13 +4081,13 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
- "tpt-macros",
+ "tpt-erp-macros",
  "trybuild",
  "uuid",
 ]
 
 [[package]]
-name = "tpt-tenant"
+name = "tpt-erp-tenant"
 version = "0.1.0"
 dependencies = [
  "axum",
@@ -4087,19 +4096,19 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "tower",
- "tpt-primitives",
+ "tpt-erp-primitives",
  "uuid",
 ]
 
 [[package]]
-name = "tpt-wasm"
+name = "tpt-erp-wasm"
 version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
- "tpt-ledger",
+ "tpt-erp-ledger",
  "wasmtime",
 ]
 
@@ -5021,12 +5030,21 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
- "tpt-bus",
- "tpt-cache",
- "tpt-ledger",
- "tpt-primitives",
- "tpt-tenant",
+ "tpt-erp-bus",
+ "tpt-erp-cache",
+ "tpt-erp-ledger",
+ "tpt-erp-primitives",
+ "tpt-erp-tenant",
  "uuid",
+]
+
+[[package]]
+name = "wms-ui"
+version = "0.1.0"
+dependencies = [
+ "leptos",
+ "serde",
+ "tpt-erp-primitives",
 ]
 
 [[package]]

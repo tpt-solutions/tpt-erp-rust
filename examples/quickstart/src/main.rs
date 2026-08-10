@@ -1,6 +1,6 @@
 //! # 10-minute quickstart — a type-safe, multi-tenant CRUD API.
 //!
-//! This single file proves the Phase 1 milestone: with `tpt-primitives`,
+//! This single file proves the Phase 1 milestone: with `tpt-erp-primitives`,
 //! `TptEntity`, and `TptApi` you can stand up a fully type-safe CRUD API —
 //! with currency/money safety, strong IDs, transition-checked workflows,
 //! validation, audit fields, pagination, and RBAC — in well under 10 minutes.
@@ -15,10 +15,10 @@ use axum::http::{Request, StatusCode};
 use chrono::{DateTime, Utc};
 use serde_json::json;
 use tower::ServiceExt;
-use tpt_entity::{
+use tpt_erp_entity::{
     AllowAll, Auditable, EntityTable, InMemoryRepository, TptApi, TptEntity, Validatable,
 };
-use tpt_primitives::{Entity, Id, Money, StateMachine, Usd};
+use tpt_erp_primitives::{Entity, Id, Money, StateMachine, Usd};
 
 impl Entity for Customer {}
 

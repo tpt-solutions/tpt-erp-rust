@@ -1,0 +1,27 @@
+[package]
+name = "tpt-erp-entity"
+readme = "README.md"
+keywords = ["erp", "orm", "sql", "repository", "validation"]
+categories = ["database", "data-structures", "web-programming"]
+
+description = "Runtime support for TPT ERP entities: table mapping, validation, audit, and repository traits backing the TptEntity/TptApi derives."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tpt-erp-primitives = { workspace = true }
+tpt-erp-macros = { workspace = true }
+serde = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

@@ -8,7 +8,7 @@
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tpt_primitives::{Entity, Id};
+use tpt_erp_primitives::{Entity, Id};
 
 /// A manufactured or purchased part.
 #[derive(Debug)]

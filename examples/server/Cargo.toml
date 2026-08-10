@@ -1,6 +1,6 @@
 [package]
 name = "server"
-description = "Reference Axum server wiring tpt-tenant + tpt-ledger (multi-tenant ledger API)."
+description = "Reference Axum server wiring tpt-erp-tenant + tpt-erp-ledger (multi-tenant ledger API)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,9 +10,9 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-tpt-primitives = { workspace = true }
-tpt-ledger = { workspace = true }
-tpt-tenant = { workspace = true, features = ["axum"] }
+tpt-erp-primitives = { workspace = true }
+tpt-erp-ledger = { workspace = true }
+tpt-erp-tenant = { workspace = true, features = ["axum"] }
 axum = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

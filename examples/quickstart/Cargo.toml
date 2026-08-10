@@ -1,6 +1,6 @@
 [package]
 name = "quickstart"
-description = "10-minute quickstart: a type-safe, multi-tenant CRUD API with tpt-primitives + TptEntity + TptApi."
+description = "10-minute quickstart: a type-safe, multi-tenant CRUD API with tpt-erp-primitives + TptEntity + TptApi."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,8 +9,8 @@ authors.workspace = true
 publish = false
 
 [dependencies]
-tpt-primitives = { workspace = true }
-tpt-entity = { workspace = true }
+tpt-erp-primitives = { workspace = true }
+tpt-erp-entity = { workspace = true }
 rust_decimal = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }

@@ -1,11 +1,11 @@
 //! Shop-floor Work-In-Process (WIP) state machine.
 //!
-//! WIP states are modeled with the [`StateMachine`] derive from `tpt-primitives`, so
+//! WIP states are modeled with the [`StateMachine`] derive from `tpt-erp-primitives`, so
 //! illegal transitions (e.g. jumping `Raw` straight to `Assembled`, or `Finished` back to
 //! `Raw`) are rejected at runtime with a typed error — and the valid graph is the single
 //! source of truth.
 
-use tpt_primitives::{Entity, Id, StateMachine};
+use tpt_erp_primitives::{Entity, Id, StateMachine};
 
 /// A shop-floor item being manufactured.
 #[derive(Debug)]

@@ -1,7 +1,7 @@
 //! Reference Axum server: a type-safe, multi-tenant ledger API.
 //!
-//! Wires [`tpt_tenant`] (tenant identification + `SET LOCAL` context) with
-//! [`tpt_ledger`] (append-only event store + double-entry core). Each tenant gets its
+//! Wires [`tpt_erp_tenant`] (tenant identification + `SET LOCAL` context) with
+//! [`tpt_erp_ledger`] (append-only event store + double-entry core). Each tenant gets its
 //! own event store, so isolation is structural: a request can only ever read or write its
 //! own tenant's journal.
 //!
@@ -22,15 +22,15 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tpt_ledger::{
+use tpt_erp_ledger::{
     BalanceProjection, Event, EventStore,
     double_entry::{
         AccountId, DoubleEntry, DoubleEntryError, EntrySide, LedgerEntry, LedgerEvent, Transaction,
     },
     replay,
 };
-use tpt_primitives::{Entity, Id, Money, Usd};
-use tpt_tenant::TenantContext;
+use tpt_erp_primitives::{Entity, Id, Money, Usd};
+use tpt_erp_tenant::TenantContext;
 
 /// Marker for a per-tenant ledger journal aggregate.
 #[derive(Debug)]
@@ -47,7 +47,7 @@ pub struct AppState {
     ledgers: Mutex<HashMap<TenantIdKey, TenantLedger>>,
 }
 
-type TenantIdKey = tpt_tenant::TenantId;
+type TenantIdKey = tpt_erp_tenant::TenantId;
 
 struct TenantLedger {
     journal: JournalId,
@@ -60,7 +60,7 @@ impl AppState {
         &self,
         tenant: &TenantIdKey,
         tx: &Transaction<Usd>,
-    ) -> Result<u64, tpt_ledger::EventStoreError> {
+    ) -> Result<u64, tpt_erp_ledger::EventStoreError> {
         let mut ledgers = self.ledgers.lock().expect("ledger lock poisoned");
         let entry = ledgers.entry(*tenant).or_insert_with(|| TenantLedger {
             journal: JournalId::new(),
@@ -190,7 +190,7 @@ async fn post_transaction(
     }
 
     let tx = Transaction {
-        id: tpt_ledger::double_entry::TransactionId::new(),
+        id: tpt_erp_ledger::double_entry::TransactionId::new(),
         entries,
     };
 
@@ -228,7 +228,7 @@ async fn journal(
 ///
 /// `AppState` is injected via an [`Extension`] layer (so the served router stays
 /// `Router<()>` and works with `axum::serve`), while the tenant context is resolved by
-/// the [`tpt_tenant`] middleware.
+/// the [`tpt_erp_tenant`] middleware.
 pub fn app(state: Arc<AppState>) -> Router {
     let shared = state.clone();
     Router::new()
@@ -242,7 +242,7 @@ pub fn app(state: Arc<AppState>) -> Router {
             },
         ))
         .layer(axum::middleware::from_fn(
-            tpt_tenant::web::tenant_context_middleware,
+            tpt_erp_tenant::web::tenant_context_middleware,
         ))
 }
 

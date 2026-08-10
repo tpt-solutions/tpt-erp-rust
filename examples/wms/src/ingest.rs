@@ -2,7 +2,7 @@
 //!
 //! Conveyor sensors and RFID gates emit a firehose of messages. This module turns that
 //! firehose into a back-pressured, batched stream of domain events published onto the
-//! `tpt-bus` event backbone (so the rest of the system reacts via CQRS projections).
+//! `tpt-erp-bus` event backbone (so the rest of the system reacts via CQRS projections).
 //!
 //! The pipeline is **transport-agnostic**: a source is any `Stream<Item = Vec<u8>>`
 //! (MQTT, raw TCP, a file, or a synthetic generator for load tests). The decode/transform/
@@ -14,7 +14,7 @@ use futures::StreamExt;
 use serde::Deserialize;
 use serde::Serialize;
 use std::time::{Duration, Instant};
-use tpt_bus::EventBus;
+use tpt_erp_bus::EventBus;
 
 /// A decoded IoT event from the warehouse floor.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -180,7 +180,7 @@ pub mod mqtt {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tpt_bus::memory::InMemoryBus;
+    use tpt_erp_bus::memory::InMemoryBus;
 
     #[tokio::test]
     async fn decodes_rfid_and_weight() {

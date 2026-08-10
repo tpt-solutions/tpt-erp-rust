@@ -20,7 +20,7 @@ safety- and money-sensitive domains; rigor and kindness both matter.
 - **Dual-licensed** `MIT OR Apache-2.0`; every crate's `Cargo.toml` must carry
   `license = "MIT OR Apache-2.0"`.
 - **No `unsafe`** unless absolutely necessary and clearly justified in a comment.
-- **Tests are required** for public behavior, especially for `tpt-primitives`
+- **Tests are required** for public behavior, especially for `tpt-erp-primitives`
   (precision, rounding, currency mismatch, ID mixups) and macro-generated code.
 - Prefer **compile-time guarantees** over runtime checks. When you can make an invalid
   state unrepresentable, do it.
