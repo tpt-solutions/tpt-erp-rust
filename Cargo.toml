@@ -8,8 +8,15 @@ members = [
     "crates/tpt-wasm",
     "crates/tpt-entity",
     "crates/tpt-frontend",
+    "crates/tpt-cli",
+    "crates/tpt-cache",
+    "crates/tpt-bus",
     "examples/quickstart",
     "examples/server",
+]
+
+exclude = [
+    "examples/plugins/*",
 ]
 
 [workspace.package]
@@ -30,6 +37,7 @@ tpt-macros = { path = "crates/tpt-macros", version = "0.1.0" }
 tpt-ledger = { path = "crates/tpt-ledger", version = "0.1.0" }
 tpt-tenant = { path = "crates/tpt-tenant", version = "0.1.0" }
 tpt-entity = { path = "crates/tpt-entity", version = "0.1.0" }
+tpt-wasm = { path = "crates/tpt-wasm", version = "0.1.0" }
 
 # Common third-party deps
 rust_decimal = { version = "1", features = ["serde", "maths"] }

@@ -86,17 +86,28 @@
 
 ## Phase 3: The Wasm Boundary (Months 7-9)
 ### tpt-wasm
-- [ ] wasmtime dependency + basic module loader
-- [ ] WIT host-guest contract: versioned "read ERP data" host functions, plugin-output types
-- [ ] Strict WASI host-binding layer: computation-only (no direct file I/O), fuel/memory limits
-- [ ] Sandbox safety tests: malicious/broken module can't crash host
-- [ ] Hot-load/hot-swap mechanism (no host restart)
+- [x] wasmtime dependency + basic module loader
+- [x] WIT host-guest contract: versioned "read ERP data" host functions, plugin-output types
+       (see `crates/tpt-wasm/wit/erp.wit`; `plugin` world imports only `erp`, never `wasi:*`)
+- [x] Strict WASI host-binding layer: computation-only (no direct file I/O), fuel/memory limits
+       (`RuntimeConfig`: fuel_per_call + max_memory_bytes enforced via wasmtime `consume_fuel` +
+       `StoreLimits`; no WASI linked into the guest)
+- [x] Sandbox safety tests: malicious/broken module can't crash host
+       (host-binding translation, reject unknown imports, reject core-module, reject bad signature)
+- [x] Hot-load/hot-swap mechanism (no host restart) — `PluginHandle::swap_module`
 
 ### CLI tool
-- [ ] `tpt plugin build`: scaffold plugin template (wasm32-wasi target)
-- [ ] Compile client Rust -> .wasm
-- [ ] Validate compiled module against WIT contract before upload
-- [ ] Example plugin compiled and executed end-to-end
+- [x] `tpt plugin new`: scaffold a computation-only plugin template
+       (`crates/tpt-cli` → `tpt plugin new`; guest targets `wasm32-unknown-unknown`,
+       NOT `wasm32-wasi`, so it is WASI-free and matches the computation-only contract)
+- [x] Compile client Rust -> .wasm
+       (`tpt plugin build` runs `cargo build --target wasm32-unknown-unknown --release`)
+- [x] Validate compiled module against WIT contract before upload
+       (`tpt plugin build` componentizes via `wit-component` + validates; `tpt plugin validate`
+       loads it through `tpt-wasm` and confirms it satisfies the `plugin` world)
+- [x] Example plugin compiled and executed end-to-end
+       (`examples/plugins/pricing` — a balance-tiered pricing engine that reads host data
+       via `erp`; proven via `cargo test -p tpt-cli --test e2e -- --ignored`)
 
 > **Milestone**: proven ability to hot-load and execute custom business logic safely at
 > runtime.

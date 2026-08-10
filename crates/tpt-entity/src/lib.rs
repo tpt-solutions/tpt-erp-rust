@@ -28,10 +28,10 @@ pub mod repository;
 pub mod validation;
 
 pub use audit::{AuditFields, Auditable};
-pub use auth::{AuthError, AuthPolicy, AllowAll, Operation, Principal};
+pub use auth::{AllowAll, AuthError, AuthPolicy, Operation, Principal};
 pub use entity::{ApplyFilter, EntityTable, Filter};
 pub use repository::{InMemoryRepository, Page, Pagination, Repository, RepositoryError};
-pub use validation::{ValidationError, Validatable};
+pub use validation::{Validatable, ValidationError};
 
 /// Re-export of the `TptEntity` and `TptApi` derive macros so a crate only needs
 /// to depend on `tpt-entity` to model and serve entities.

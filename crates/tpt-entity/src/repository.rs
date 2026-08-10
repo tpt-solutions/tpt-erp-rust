@@ -158,12 +158,9 @@ where
         entity.validate()?;
         let mut guard = self.store.lock().expect("in-memory repo lock poisoned");
         match guard.entry(entity.id()) {
-            std::collections::hash_map::Entry::Occupied(_) => {
-                Err(RepositoryError::Conflict(format!(
-                    "entity {} already exists",
-                    entity.id()
-                )))
-            }
+            std::collections::hash_map::Entry::Occupied(_) => Err(RepositoryError::Conflict(
+                format!("entity {} already exists", entity.id()),
+            )),
             std::collections::hash_map::Entry::Vacant(slot) => {
                 slot.insert(entity.clone());
                 Ok(entity)

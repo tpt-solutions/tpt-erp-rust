@@ -197,7 +197,7 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
             return Err(syn::Error::new_spanned(
                 &input,
                 "TptEntity can only be derived for structs",
-            ))
+            ));
         }
     };
     let named = match fields {
@@ -206,7 +206,7 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
             return Err(syn::Error::new_spanned(
                 &input,
                 "TptEntity requires named fields",
-            ))
+            ));
         }
     };
 

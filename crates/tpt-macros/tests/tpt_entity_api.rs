@@ -7,11 +7,11 @@ use axum::body::to_bytes;
 use axum::http::{Request, StatusCode};
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
+use tower::ServiceExt;
 use tpt_entity::{
     AllowAll, Auditable, EntityTable, InMemoryRepository, TptApi, TptEntity, Validatable,
 };
 use tpt_primitives::{Entity, Id};
-use tower::ServiceExt;
 
 impl Entity for Product {}
 
@@ -88,12 +88,14 @@ async fn crud_roundtrip_and_filtering() {
     // list all
     let r = request(&app, "GET", "/products?page=1&per_page=10", None).await;
     assert_eq!(r.status(), StatusCode::OK);
-    let page: Value = serde_json::from_slice(&to_bytes(r.into_body(), usize::MAX).await.unwrap()).unwrap();
+    let page: Value =
+        serde_json::from_slice(&to_bytes(r.into_body(), usize::MAX).await.unwrap()).unwrap();
     assert_eq!(page["total"], 2);
 
     // filter by name
     let r = request(&app, "GET", "/products?name=Widget", None).await;
-    let page: Value = serde_json::from_slice(&to_bytes(r.into_body(), usize::MAX).await.unwrap()).unwrap();
+    let page: Value =
+        serde_json::from_slice(&to_bytes(r.into_body(), usize::MAX).await.unwrap()).unwrap();
     assert_eq!(page["total"], 1);
     assert_eq!(page["items"][0]["name"], "Widget");
 
@@ -102,7 +104,13 @@ async fn crud_roundtrip_and_filtering() {
     assert_eq!(r.status(), StatusCode::OK);
 
     // missing -> 404
-    let r = request(&app, "GET", &format!("/products/{}", Id::<Product>::new()), None).await;
+    let r = request(
+        &app,
+        "GET",
+        &format!("/products/{}", Id::<Product>::new()),
+        None,
+    )
+    .await;
     assert_eq!(r.status(), StatusCode::NOT_FOUND);
 
     // delete

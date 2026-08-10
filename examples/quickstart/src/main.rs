@@ -14,9 +14,11 @@ use axum::body::to_bytes;
 use axum::http::{Request, StatusCode};
 use chrono::{DateTime, Utc};
 use serde_json::json;
-use tpt_entity::{AllowAll, Auditable, EntityTable, InMemoryRepository, TptApi, TptEntity, Validatable};
-use tpt_primitives::{Entity, Id, Money, StateMachine, Usd};
 use tower::ServiceExt;
+use tpt_entity::{
+    AllowAll, Auditable, EntityTable, InMemoryRepository, TptApi, TptEntity, Validatable,
+};
+use tpt_primitives::{Entity, Id, Money, StateMachine, Usd};
 
 impl Entity for Customer {}
 
@@ -164,8 +166,12 @@ async fn main() {
 
     // --- 8. State machine still guards workflows ------------------------
     let mut status = OrderStatus::Draft;
-    status = status.transition(OrderStatus::Confirmed).expect("Draft -> Confirmed");
-    status = status.transition(OrderStatus::Shipped).expect("Confirmed -> Shipped");
+    status = status
+        .transition(OrderStatus::Confirmed)
+        .expect("Draft -> Confirmed");
+    status = status
+        .transition(OrderStatus::Shipped)
+        .expect("Confirmed -> Shipped");
     println!("order status advanced to {status:?}");
     let _ = &_line;
 }

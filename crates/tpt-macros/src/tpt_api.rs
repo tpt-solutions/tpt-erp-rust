@@ -16,9 +16,7 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{
-    Data, DeriveInput, Ident, LitStr, Result, Type,
-};
+use syn::{Data, DeriveInput, Ident, LitStr, Result, Type};
 
 use crate::util::to_snake_case;
 
@@ -57,9 +55,8 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
         })?;
     }
 
-    let entity_ty = entity_ty.ok_or_else(|| {
-        syn::Error::new_spanned(&input, "#[tpt_api(entity = ...)] is required")
-    })?;
+    let entity_ty = entity_ty
+        .ok_or_else(|| syn::Error::new_spanned(&input, "#[tpt_api(entity = ...)] is required"))?;
     let entity_ident = match &entity_ty {
         Type::Path(p) => p
             .path
@@ -68,7 +65,12 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
             .ok_or_else(|| syn::Error::new_spanned(&entity_ty, "invalid entity type"))?
             .ident
             .clone(),
-        _ => return Err(syn::Error::new_spanned(&entity_ty, "entity must be a path type")),
+        _ => {
+            return Err(syn::Error::new_spanned(
+                &entity_ty,
+                "entity must be a path type",
+            ));
+        }
     };
 
     let path = path.unwrap_or_else(|| format!("/{}", to_snake_case(&entity_ident.to_string())));
@@ -76,7 +78,7 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
 
     let state_name = Ident::new(&format!("{api}State"), api.span());
     let error_name = Ident::new(&format!("{api}Error"), api.span());
-    let list = Ident::new(&format!("{api}_list", ), api.span());
+    let list = Ident::new(&format!("{api}_list",), api.span());
     let get_one = Ident::new(&format!("{api}_get_one"), api.span());
     let create = Ident::new(&format!("{api}_create"), api.span());
     let replace = Ident::new(&format!("{api}_replace"), api.span());

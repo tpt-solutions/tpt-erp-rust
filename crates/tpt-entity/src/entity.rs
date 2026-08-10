@@ -1,7 +1,7 @@
 //! Database table mapping and the per-entity query `Filter`.
 
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 /// The set of bounds an entity's primary-key type must satisfy so the generated
 /// Axum router can extract it from a path / serialise it in JSON.
@@ -61,10 +61,7 @@ pub trait EntityTable: Sized {
 /// Filters are all-`Option` field bags the list endpoint deserialises from the
 /// query string. They also implement [`ApplyFilter`] so the in-memory repository
 /// (and any backend that wants to) can match entities without hand-written code.
-pub trait Filter:
-    Default + DeserializeOwned + Send + Sync + std::fmt::Debug + Clone
-{
-}
+pub trait Filter: Default + DeserializeOwned + Send + Sync + std::fmt::Debug + Clone {}
 
 /// Implemented by the generated filter so a backend can test membership.
 ///

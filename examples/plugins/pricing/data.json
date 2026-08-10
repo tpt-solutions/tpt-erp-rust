@@ -1,0 +1,8 @@
+{
+  "accounts": {
+    "acc-1": { "major": 250, "minor": 0 }
+  },
+  "stock": {
+    "SKU-A": 42
+  }
+}
