@@ -181,32 +181,32 @@
 - [ ] Engage e-commerce/retail-ops domain expert to validate business rules/workflows
 
 ### Sprint E: Retail/POS
-- [ ] Scaffold example app crate (`examples/pos`)
-- [ ] Transaction State Machine: Cart -> Tendering -> Authorized -> Captured (void/
+- [x] Scaffold example app crate (`examples/pos`)
+- [x] Transaction State Machine: Cart -> Tendering -> Authorized -> Captured (void/
        refund branches), line items + tax in `Money<Usd>`
-- [ ] Split Tender & Drawer Reconciliation: `Money::allocate`-based multi-tender
+- [x] Split Tender & Drawer Reconciliation: `Money::allocate`-based multi-tender
        splitting, expected-vs-counted cash-drawer math
-- [ ] Offline-First Sync: local event-sourced transaction log, idempotent
+- [x] Offline-First Sync: local event-sourced transaction log, idempotent
        reconciliation replay to the central store on reconnect, `tpt-erp-cache`
        sync-checkpoint, `pos.synced` job on `tpt-erp-bus`
-- [ ] Pricing plugin integration: `pos::pricing` gives `examples/plugins/pricing` a real
+- [x] Pricing plugin integration: `pos::pricing` gives `examples/plugins/pricing` a real
        backend home (balance-tiered discount via `tpt-erp-wasm`), hot-swap proven by
        `PluginHandle::swap_module` test
-- [ ] Leptos UI: cashier terminal view with offline/online indicator (`examples/pos-ui`)
+- [x] Leptos UI: cashier terminal view with offline/online indicator (`examples/pos-ui`)
 - [ ] Engage retail/store-ops domain expert to validate business rules/workflows
 
 ### Sprint F: Fleet/TMS
-- [ ] Scaffold example app crate (`examples/tms`)
-- [ ] GPS Telemetry Ingestion: transport-agnostic pipeline (decode GPS frames,
+- [x] Scaffold example app crate (`examples/tms`)
+- [x] GPS Telemetry Ingestion: transport-agnostic pipeline (decode GPS frames,
        back-pressured batching onto `tpt-erp-bus`, optional `mqtt` feature), load test
-- [ ] Geofencing: point-in-polygon/circle containment + haversine distance, zone
+- [x] Geofencing: point-in-polygon/circle containment + haversine distance, zone
        entry/exit events on `tpt-erp-bus`
-- [ ] Route Optimization: nearest-neighbor + rayon-parallel 2-opt improvement,
+- [x] Route Optimization: nearest-neighbor + rayon-parallel 2-opt improvement,
        benchmark vs. naive (`#[ignore]` test), Wasm dispatch-plugin stop scoring
-- [ ] Driver HOS State Machine: OffDuty/OnDuty/Driving/SleeperBerth via
+- [x] Driver HOS State Machine: OffDuty/OnDuty/Driving/SleeperBerth via
        tpt-erp-primitives StateMachine + 11/14-hour rule-check layer, tests
-- [ ] Wasm dispatch plugin: `examples/plugins/dispatch` guest, componentizes + validates
-- [ ] Leptos UI: dispatcher live-map/route-plan view (`examples/tms-ui`)
+- [x] Wasm dispatch plugin: `examples/plugins/dispatch` guest, componentizes + validates
+- [x] Leptos UI: dispatcher live-map/route-plan view (`examples/tms-ui`)
 - [ ] Engage fleet/logistics domain expert to validate business rules/workflows
 
 ### Shared infra

@@ -21,6 +21,10 @@ members = [
     "examples/wms-ui",
     "examples/mes-ui",
     "examples/gl-ui",
+    "examples/pos",
+    "examples/pos-ui",
+    "examples/tms",
+    "examples/tms-ui",
 ]
 
 exclude = [

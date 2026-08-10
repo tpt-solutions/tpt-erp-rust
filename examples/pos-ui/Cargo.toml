@@ -1,0 +1,29 @@
+[package]
+name = "pos-ui"
+description = "Leptos cashier-terminal view for the POS reference ERP: live transaction state and offline/online indicator."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Default (host) build uses SSR mode so `cargo build` works on the dev machine.
+# For the real WASM build run:
+#   cargo build -p pos-ui --no-default-features --features "hydrate"
+default = ["ssr"]
+ssr = ["leptos/ssr"]
+hydrate = ["leptos/hydrate", "leptos/csr"]
+
+[dependencies]
+tpt-erp-primitives = { workspace = true }
+serde = { workspace = true }
+leptos = { workspace = true, features = ["ssr"] }
+
+[lints]
+workspace = true

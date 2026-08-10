@@ -2358,6 +2358,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05c8b63e8d9609db387f0324918f81d68fe27748f084ef092fb35954d0539a85"
 
 [[package]]
+name = "pos"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "chrono",
+ "futures",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tpt-erp-bus",
+ "tpt-erp-cache",
+ "tpt-erp-ledger",
+ "tpt-erp-primitives",
+ "tpt-erp-tenant",
+ "tpt-erp-wasm",
+ "uuid",
+]
+
+[[package]]
+name = "pos-ui"
+version = "0.1.0"
+dependencies = [
+ "leptos",
+ "serde",
+ "tpt-erp-primitives",
+]
+
+[[package]]
 name = "postcard"
 version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3871,6 +3902,39 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "tms"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "chrono",
+ "futures",
+ "rayon",
+ "rumqttc",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tpt-erp-bus",
+ "tpt-erp-cache",
+ "tpt-erp-ledger",
+ "tpt-erp-primitives",
+ "tpt-erp-tenant",
+ "tpt-erp-wasm",
+ "uuid",
+]
+
+[[package]]
+name = "tms-ui"
+version = "0.1.0"
+dependencies = [
+ "leptos",
+ "serde",
+ "tpt-erp-primitives",
+]
 
 [[package]]
 name = "tokio"

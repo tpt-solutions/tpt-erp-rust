@@ -1,0 +1,39 @@
+[package]
+name = "tms"
+description = "Reference Fleet / TMS implementation on TPT ERP: GPS ingestion, geofencing, route optimization, driver HOS state machine, and Wasm dispatch plugin."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+tpt-erp-primitives = { workspace = true }
+tpt-erp-ledger = { workspace = true }
+tpt-erp-bus = { workspace = true }
+tpt-erp-cache = { workspace = true }
+tpt-erp-tenant = { workspace = true }
+tpt-erp-wasm = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rust_decimal = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+axum = { workspace = true }
+futures = "0.3"
+rayon = { workspace = true }
+rumqttc = { workspace = true, optional = true }
+
+[features]
+# Optional MQTT ingress bridging rumqttc into the transport-agnostic GPS pipeline.
+mqtt = ["dep:rumqttc"]
+
+[dev-dependencies]
+uuid = { workspace = true }
+
+[lints]
+workspace = true

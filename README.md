@@ -48,7 +48,7 @@ full roadmap and current progress.
 - [x] `tpt-erp-cli` plugin tooling and `tpt-erp-frontend` Leptos demo
 - [ ] SQLx/Postgres repository backend for `tpt-erp-entity`
 - [ ] Postgres-backed event store for `tpt-erp-ledger`
- - [ ] Reference implementations: 3PL/WMS, Manufacturing/MES, Accounting/GL, E-commerce/OMS, Retail/POS, Fleet/TMS
+ - [x] Reference implementations: 3PL/WMS, Manufacturing/MES, Accounting/GL, E-commerce/OMS, Retail/POS, Fleet/TMS
 
 ## Quickstart
 
