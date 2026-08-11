@@ -80,19 +80,16 @@ pub fn derive_state_machine(input: TokenStream) -> TokenStream {
                 "missing `#[state_machine(transitions(..))]` attribute",
             )
             .to_compile_error()
-            .into()
+            .into();
         }
     };
 
     let variants: Vec<Ident> = match &input.data {
         syn::Data::Enum(e) => e.variants.iter().map(|v| v.ident.clone()).collect(),
         _ => {
-            return syn::Error::new_spanned(
-                &input,
-                "StateMachine can only be derived for enums",
-            )
-            .to_compile_error()
-            .into()
+            return syn::Error::new_spanned(&input, "StateMachine can only be derived for enums")
+                .to_compile_error()
+                .into();
         }
     };
 

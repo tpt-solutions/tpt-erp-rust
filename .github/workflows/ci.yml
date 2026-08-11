@@ -43,3 +43,64 @@ jobs:
 
       - name: Test
         run: cargo test --workspace --all-targets
+
+  # Benchmark / load / stress tests are marked `#[ignore]` so they don't slow the
+  # default run. This job continuously verifies the "zero oversell", "thousands of
+  # msgs/sec", "4,000-part BOM", and offline-sync claims actually hold.
+  ignored-tests:
+    name: ignored stress / load tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown, wasm32-wasip1
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.5
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run ignored tests
+        run: cargo test --workspace --all-targets -- --ignored --test-threads=1
+
+  # Pin to the declared MSRV so we notice if a dependency or language feature
+  # silently raises the floor (rust-version in the root Cargo.toml).
+  msrv:
+    name: MSRV ${{ matrix.msrv }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        msrv: ["1.97.0"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.msrv }}
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown, wasm32-wasip1
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.5
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-msrv-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build (MSRV)
+        run: cargo build --workspace --all-targets

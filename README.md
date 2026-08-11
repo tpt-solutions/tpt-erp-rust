@@ -35,8 +35,11 @@ docs/        # architecture & usage documentation
 
 ## Status
 
-This repository is in **Phase 1: The Foundation**. See [`todo.md`](./todo.md) for the
-full roadmap and current progress.
+This repository is in **Phase 5: Platform Hardening** — all six reference ERPs
+(3PL/WMS, Manufacturing/MES, Accounting/GL, E-commerce/OMS, Retail/POS, Fleet/TMS) are
+implemented and the framework core has been through a full-source security/correctness
+review. See [`todo.md`](./todo.md) for the roadmap and the review's remaining (and
+resolved) items.
 
 - [x] Workspace + `tpt-erp-primitives` (`Money`, `Id`, currency markers) and `StateMachine` derive macro
 - [x] `tpt-erp-macros`: `TptEntity` + `TptApi` derives (validation, audit, filter, Axum CRUD router)

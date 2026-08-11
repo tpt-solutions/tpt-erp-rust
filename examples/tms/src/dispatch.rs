@@ -23,7 +23,10 @@ pub struct TmsDispatchHost {
 
 impl TmsDispatchHost {
     /// Build a host context from a stop→demand map and tenant slug.
-    pub fn new(demand: std::collections::HashMap<String, StopDemand>, tenant: impl Into<String>) -> Self {
+    pub fn new(
+        demand: std::collections::HashMap<String, StopDemand>,
+        tenant: impl Into<String>,
+    ) -> Self {
         Self {
             demand: Arc::new(tokio::sync::Mutex::new(demand)),
             tenant: tenant.into(),
@@ -67,7 +70,10 @@ pub struct DispatchEngine {
 
 impl DispatchEngine {
     /// An engine with no plugin attached: [`DispatchEngine::score`] returns `None`.
-    pub fn without_plugin(demand: std::collections::HashMap<String, StopDemand>, tenant: &str) -> Self {
+    pub fn without_plugin(
+        demand: std::collections::HashMap<String, StopDemand>,
+        tenant: &str,
+    ) -> Self {
         Self {
             runtime: None,
             handle: None,

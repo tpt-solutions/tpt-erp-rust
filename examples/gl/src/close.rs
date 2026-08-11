@@ -136,7 +136,8 @@ where
         }
         self.period.advance(PeriodStatus::Closed)?;
         // Enforce the close: the journal engine now rejects postings to this period.
-        self.engine.set_period_status(&self.period.name, PeriodStatus::Closed);
+        self.engine
+            .set_period_status(&self.period.name, PeriodStatus::Closed);
         if let Some(bus) = &self.bus {
             let payload = serde_json::json!({
                 "period": self.period.name,
@@ -151,7 +152,8 @@ where
     /// Advance `Closed -> Locked` (irreversible to Open, but reopenable one step).
     pub fn lock(&mut self) -> Result<(), CloseError> {
         self.period.advance(PeriodStatus::Locked)?;
-        self.engine.set_period_status(&self.period.name, PeriodStatus::Locked);
+        self.engine
+            .set_period_status(&self.period.name, PeriodStatus::Locked);
         Ok(())
     }
 

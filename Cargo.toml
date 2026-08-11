@@ -11,6 +11,7 @@ members = [
     "crates/tpt-erp-cli",
     "crates/tpt-erp-cache",
     "crates/tpt-erp-bus",
+    "crates/tpt-erp-observability",
     "examples/quickstart",
     "examples/server",
     "examples/wms",
@@ -38,7 +39,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/tpt-erp-rust/tpt-erp-rust"
 homepage = "https://github.com/tpt-erp-rust/tpt-erp-rust"
 authors = ["TPT Solutions"]
-rust-version = "1.85"
+rust-version = "1.97"
 keywords = ["erp", "finance", "ledger", "webassembly", "multitenancy"]
 categories = ["database", "finance", "web-programming"]
 
@@ -52,6 +53,7 @@ tpt-erp-entity = { path = "crates/tpt-erp-entity", version = "0.1.0" }
 tpt-erp-wasm = { path = "crates/tpt-erp-wasm", version = "0.1.0" }
 tpt-erp-bus = { path = "crates/tpt-erp-bus", version = "0.1.0" }
 tpt-erp-cache = { path = "crates/tpt-erp-cache", version = "0.1.0" }
+tpt-erp-observability = { path = "crates/tpt-erp-observability", version = "0.1.0" }
 gl = { path = "examples/gl", version = "0.1.0" }
 
 # Common third-party deps
@@ -68,7 +70,7 @@ proc-macro2 = "1"
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 async-trait = "0.1"
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "uuid", "macros"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "uuid", "macros"] }
 leptos = { version = "0.7", default-features = false }
 rayon = "1"
 rumqttc = { version = "0.24", features = ["use-rustls"] }

@@ -18,6 +18,12 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
+sqlx = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+
+[features]
+# Postgres-backed `EventStore` (mirrored, RLS-scoped per tenant).
+postgres = ["dep:sqlx", "dep:tokio"]
 
 [dev-dependencies]
 rust_decimal = { workspace = true }

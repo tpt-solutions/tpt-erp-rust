@@ -23,7 +23,13 @@ const STREAM: &str = "tpt-events";
 fn sanitize_subject(subject: &str) -> String {
     subject
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 

@@ -203,8 +203,10 @@ async fn custom_policy_honours_upstream_principal() {
     let now = Utc::now();
 
     // Admin principal -> every operation authorized.
-    let admin_app = ProductApi::router::<_, AdminOnly>(repo.clone())
-        .layer(middleware::from_fn(|req, next| inject_principal(vec!["admin".into()], req, next)));
+    let admin_app =
+        ProductApi::router::<_, AdminOnly>(repo.clone()).layer(middleware::from_fn(|req, next| {
+            inject_principal(vec!["admin".into()], req, next)
+        }));
 
     let r = request(
         &admin_app,
@@ -216,8 +218,10 @@ async fn custom_policy_honours_upstream_principal() {
     assert_eq!(r.status(), StatusCode::CREATED);
 
     // Guest principal (no admin role) -> create denied by the policy.
-    let guest_app = ProductApi::router::<_, AdminOnly>(repo)
-        .layer(middleware::from_fn(|req, next| inject_principal(vec![], req, next)));
+    let guest_app =
+        ProductApi::router::<_, AdminOnly>(repo).layer(middleware::from_fn(|req, next| {
+            inject_principal(vec![], req, next)
+        }));
 
     let r = request(
         &guest_app,

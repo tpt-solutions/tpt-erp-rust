@@ -33,7 +33,9 @@ impl HostContext for Ctx {
         None
     }
     fn stock_level(&self, sku: &str) -> Option<u64> {
-        Id::<Sku>::parse(sku).ok().map(|id| self.engine.available(id) as u64)
+        Id::<Sku>::parse(sku)
+            .ok()
+            .map(|id| self.engine.available(id) as u64)
     }
     fn current_tenant(&self) -> String {
         "oms".into()
@@ -90,7 +92,10 @@ async fn promo_plugin_reads_stock_and_discounts() {
 
     // 1000 cents, 15% clearance discount => 850.
     assert!(out.contains("final_price"), "unexpected output: {out}");
-    assert!(out.contains("850"), "expected 15% off 1000 => 850, got: {out}");
+    assert!(
+        out.contains("850"),
+        "expected 15% off 1000 => 850, got: {out}"
+    );
     assert!(out.contains("discount_pct"), "unexpected output: {out}");
 
     // Scarce stock => no discount (0%).

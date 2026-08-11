@@ -27,11 +27,17 @@ pub mod entity;
 pub mod repository;
 pub mod validation;
 
+#[cfg(feature = "postgres")]
+pub mod postgres_repo;
+
 pub use audit::{AuditFields, Auditable};
 pub use auth::{AllowAll, AuthError, AuthPolicy, Operation, Principal};
 pub use entity::{ApplyFilter, EntityTable, Filter};
 pub use repository::{InMemoryRepository, Page, Pagination, Repository, RepositoryError};
 pub use validation::{Validatable, ValidationError};
+
+#[cfg(feature = "postgres")]
+pub use postgres_repo::PostgresRepository;
 
 /// Re-export of the `TptEntity` and `TptApi` derive macros so a crate only needs
 /// to depend on `tpt-erp-entity` to model and serve entities.

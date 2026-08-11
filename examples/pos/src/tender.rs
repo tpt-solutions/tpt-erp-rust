@@ -44,7 +44,10 @@ pub enum TenderError {
     #[error("cannot split an empty set of tenders")]
     EmptyTenders,
     #[error("tender split does not cover the total: covered {covered}, total {total}")]
-    Underfunded { covered: Money<Usd>, total: Money<Usd> },
+    Underfunded {
+        covered: Money<Usd>,
+        total: Money<Usd>,
+    },
 }
 
 /// Split `total` across `tenders` so that each tender's *applied* share is apportioned
@@ -59,16 +62,24 @@ pub fn split_total(total: Money<Usd>, tenders: &[Tender]) -> Result<Vec<Money<Us
         return Err(TenderError::EmptyTenders);
     }
     // The customer must have tendered at least the sale total across all instruments.
-    let offered: Money<Usd> = tenders.iter().map(|t| t.amount).fold(Money::zero(), |a, b| a + b);
+    let offered: Money<Usd> = tenders
+        .iter()
+        .map(|t| t.amount)
+        .fold(Money::zero(), |a, b| a + b);
     if offered < total {
-        return Err(TenderError::Underfunded { covered: offered, total });
+        return Err(TenderError::Underfunded {
+            covered: offered,
+            total,
+        });
     }
     // Split the (fully covered) total proportionally to each tender's offered amount; the
     // parts always sum *exactly* back to `total` at the minor unit. `allocate` returns an
     // error only for an empty/zero-weight list, which cannot happen here (weights are
     // derived from non-empty `tenders` and cannot all be zero since `offered >= total > 0`).
     let weights: Vec<u64> = tenders.iter().map(|t| amount_to_u64(t.amount)).collect();
-    let applied = total.allocate(&weights).map_err(|_| TenderError::EmptyTenders)?;
+    let applied = total
+        .allocate(&weights)
+        .map_err(|_| TenderError::EmptyTenders)?;
     Ok(applied)
 }
 
@@ -165,24 +176,15 @@ mod tests {
 
     #[test]
     fn drawer_variance_and_balance() {
-        let balanced = Drawer::new(
-            Money::<Usd>::from_major(200),
-            Money::<Usd>::from_major(200),
-        );
+        let balanced = Drawer::new(Money::<Usd>::from_major(200), Money::<Usd>::from_major(200));
         assert!(balanced.is_balanced());
         assert_eq!(balanced.variance(), Money::<Usd>::zero());
 
-        let short = Drawer::new(
-            Money::<Usd>::from_major(200),
-            Money::<Usd>::from_major(195),
-        );
+        let short = Drawer::new(Money::<Usd>::from_major(200), Money::<Usd>::from_major(195));
         assert!(!short.is_balanced());
         assert_eq!(short.variance(), Money::<Usd>::from_major(-5));
 
-        let over = Drawer::new(
-            Money::<Usd>::from_major(200),
-            Money::<Usd>::from_major(203),
-        );
+        let over = Drawer::new(Money::<Usd>::from_major(200), Money::<Usd>::from_major(203));
         assert_eq!(over.variance(), Money::<Usd>::from_major(3));
     }
 

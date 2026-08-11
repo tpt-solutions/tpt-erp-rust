@@ -160,7 +160,10 @@ mod tests {
         assert!(eng.is_loaded());
         let discounted = eng.discount("store-1", 10_000).unwrap();
         assert!(discounted < 10_000, "expected a discount, got {discounted}");
-        assert!(discounted > 8_000, "10% off 10000 should be 9000, got {discounted}");
+        assert!(
+            discounted > 8_000,
+            "10% off 10000 should be 9000, got {discounted}"
+        );
 
         // Hot-swap the same code in place — the host is never recreated.
         let wasm2 = std::fs::read(&path).expect("read component bytes");

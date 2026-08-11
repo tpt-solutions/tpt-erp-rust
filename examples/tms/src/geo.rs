@@ -35,8 +35,7 @@ pub fn haversine_km(a: LatLng, b: LatLng) -> f64 {
     let lat1 = to_rad(a.lat);
     let lat2 = to_rad(b.lat);
 
-    let h = (dlat / 2.0).sin().powi(2)
-        + lat1.cos() * lat2.cos() * (dlng / 2.0).sin().powi(2);
+    let h = (dlat / 2.0).sin().powi(2) + lat1.cos() * lat2.cos() * (dlng / 2.0).sin().powi(2);
     let c = 2.0 * h.sqrt().asin();
     EARTH_RADIUS_KM * c
 }
@@ -147,7 +146,13 @@ mod tests {
 
         // Cross from outside to inside.
         let ev = square.crossing(LatLng::new(-0.5, 0.5), LatLng::new(0.5, 0.5));
-        assert_eq!(ev, Some(ZoneEvent { entered: true, point: LatLng::new(0.5, 0.5) }));
+        assert_eq!(
+            ev,
+            Some(ZoneEvent {
+                entered: true,
+                point: LatLng::new(0.5, 0.5)
+            })
+        );
 
         // Stable inside => no event.
         assert_eq!(

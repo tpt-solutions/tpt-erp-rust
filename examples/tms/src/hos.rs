@@ -172,9 +172,21 @@ mod tests {
     #[test]
     fn accrues_driving_and_on_duty_within_limits() {
         let mut c = HosClock::new(Id::new());
-        c.apply(DutyPeriod { status: HosStatus::OnDuty, duration: h(1) }).unwrap();
-        c.apply(DutyPeriod { status: HosStatus::Driving, duration: h(10) }).unwrap();
-        c.apply(DutyPeriod { status: HosStatus::OnDuty, duration: h(2) }).unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::OnDuty,
+            duration: h(1),
+        })
+        .unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::Driving,
+            duration: h(10),
+        })
+        .unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::OnDuty,
+            duration: h(2),
+        })
+        .unwrap();
         assert_eq!(c.window.driving, h(10));
         assert_eq!(c.window.on_duty, h(13));
         assert!(c.is_compliant());
@@ -184,8 +196,16 @@ mod tests {
     fn driving_over_11_hours_violates() {
         let mut c = HosClock::new(Id::new());
         // A driver must come on-duty before driving (OffDuty -> OnDuty -> Driving).
-        c.apply(DutyPeriod { status: HosStatus::OnDuty, duration: Duration::ZERO }).unwrap();
-        c.apply(DutyPeriod { status: HosStatus::Driving, duration: h(12) }).unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::OnDuty,
+            duration: Duration::ZERO,
+        })
+        .unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::Driving,
+            duration: h(12),
+        })
+        .unwrap();
         assert!(!c.is_compliant());
         assert!(matches!(c.violations()[0], HosViolation::DrivingLimit(_)));
     }
@@ -193,9 +213,21 @@ mod tests {
     #[test]
     fn on_duty_over_14_hours_violates() {
         let mut c = HosClock::new(Id::new());
-        c.apply(DutyPeriod { status: HosStatus::OnDuty, duration: h(3) }).unwrap();
-        c.apply(DutyPeriod { status: HosStatus::Driving, duration: h(11) }).unwrap();
-        c.apply(DutyPeriod { status: HosStatus::OnDuty, duration: h(2) }).unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::OnDuty,
+            duration: h(3),
+        })
+        .unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::Driving,
+            duration: h(11),
+        })
+        .unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::OnDuty,
+            duration: h(2),
+        })
+        .unwrap();
         assert!(!c.is_compliant());
         assert!(matches!(c.violations()[0], HosViolation::OnDutyLimit(_)));
     }
@@ -203,13 +235,29 @@ mod tests {
     #[test]
     fn ten_hour_off_duty_resets_window() {
         let mut c = HosClock::new(Id::new());
-        c.apply(DutyPeriod { status: HosStatus::OnDuty, duration: Duration::ZERO }).unwrap();
-        c.apply(DutyPeriod { status: HosStatus::Driving, duration: h(12) }).unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::OnDuty,
+            duration: Duration::ZERO,
+        })
+        .unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::Driving,
+            duration: h(12),
+        })
+        .unwrap();
         assert!(!c.is_compliant());
         // A qualifying 10h off-duty break resets the window to zero. Driving must first
         // return to OnDuty, then OffDuty (the legal duty graph has no direct Driving->OffDuty).
-        c.apply(DutyPeriod { status: HosStatus::OnDuty, duration: Duration::ZERO }).unwrap();
-        c.apply(DutyPeriod { status: HosStatus::OffDuty, duration: h(10) }).unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::OnDuty,
+            duration: Duration::ZERO,
+        })
+        .unwrap();
+        c.apply(DutyPeriod {
+            status: HosStatus::OffDuty,
+            duration: h(10),
+        })
+        .unwrap();
         assert!(c.is_compliant());
         assert_eq!(c.window.driving, h(0));
     }

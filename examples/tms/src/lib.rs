@@ -23,12 +23,7 @@ pub mod route;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::post,
-    Json, Router,
-};
+use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use serde::{Deserialize, Serialize};
 use tpt_erp_tenant::{TenantId, TenantSlug};
 
@@ -109,9 +104,7 @@ impl TmsApp {
     pub fn router(&self) -> Router {
         Router::new()
             .route("/dispatch/score", post(score_handler))
-            .with_state(TmsState {
-                app: self.clone(),
-            })
+            .with_state(TmsState { app: self.clone() })
     }
 }
 
@@ -133,7 +126,10 @@ async fn score_handler(
             score,
             plugin_loaded,
         })),
-        None => Err((StatusCode::SERVICE_UNAVAILABLE, "no dispatch plugin loaded".into())),
+        None => Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no dispatch plugin loaded".into(),
+        )),
     }
 }
 

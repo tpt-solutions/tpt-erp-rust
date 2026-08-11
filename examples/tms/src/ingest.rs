@@ -201,9 +201,15 @@ mod tests {
             let source = synthetic_source(count, 99);
             let stats = run_pipeline(source, &bus, 256).await;
             let per_sec = count as f64 / stats.elapsed.as_secs_f64();
-            println!("ingested {count} GPS frames in {:?} (~{per_sec:.0} msg/sec)", stats.elapsed);
+            println!(
+                "ingested {count} GPS frames in {:?} (~{per_sec:.0} msg/sec)",
+                stats.elapsed
+            );
             assert_eq!(stats.decoded, count as u64);
-            assert!(per_sec > 1_000.0, "expected >1000 msg/sec, got {per_sec:.0}");
+            assert!(
+                per_sec > 1_000.0,
+                "expected >1000 msg/sec, got {per_sec:.0}"
+            );
         });
     }
 }

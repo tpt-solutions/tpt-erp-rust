@@ -23,12 +23,7 @@ pub mod txn;
 
 use std::sync::Arc;
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::post,
-    Json, Router,
-};
+use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use tpt_erp_primitives::{Id, Money, Usd};
@@ -37,7 +32,7 @@ use tpt_erp_tenant::{TenantId, TenantSlug};
 use crate::pricing::PosPricingEngine;
 use crate::sync::{PosSync, SaleEvent};
 use crate::tender::{Tender, TenderKind, split_total};
-use crate::txn::{LineItem, TxnStatus, Transaction};
+use crate::txn::{LineItem, Transaction, TxnStatus};
 
 /// Build a tenant for example/demo use.
 pub fn demo_tenant() -> TenantId {
@@ -78,7 +73,10 @@ pub struct SaleOutcome {
 #[derive(Debug, thiserror::Error)]
 pub enum PosError {
     #[error("insufficient tender: covered {covered}, total {total}")]
-    Underfunded { covered: Money<Usd>, total: Money<Usd> },
+    Underfunded {
+        covered: Money<Usd>,
+        total: Money<Usd>,
+    },
     #[error("illegal transaction transition: {0}")]
     Transition(#[from] crate::txn::TxnStatusTransitionError),
     #[error("transaction error: {0}")]
@@ -166,7 +164,8 @@ impl PosApp {
             }
         };
         let discounted_subtotal = Money::<Usd>::new(
-            rust_decimal::Decimal::from(discounted_subtotal_cents) / rust_decimal::Decimal::from(100),
+            rust_decimal::Decimal::from(discounted_subtotal_cents)
+                / rust_decimal::Decimal::from(100),
         );
         let discount = subtotal - discounted_subtotal;
         let total = discounted_subtotal + tax;
@@ -183,9 +182,10 @@ impl PosApp {
             crate::tender::TenderError::Underfunded { covered, total } => {
                 PosError::Underfunded { covered, total }
             }
-            crate::tender::TenderError::EmptyTenders => {
-                PosError::Underfunded { covered: Money::zero(), total: subtotal }
-            }
+            crate::tender::TenderError::EmptyTenders => PosError::Underfunded {
+                covered: Money::zero(),
+                total: subtotal,
+            },
         })?;
 
         // Advance the sale lifecycle to a captured (settled) state.
@@ -222,13 +222,8 @@ impl PosApp {
     /// Build the Axum router: a `/sale` handler that rings a transaction.
     pub fn router(&self) -> Router {
         Router::new()
-            .route(
-                "/sale",
-                post(sale_handler).put(sale_handler),
-            )
-            .with_state(PosState {
-                app: self.clone(),
-            })
+            .route("/sale", post(sale_handler).put(sale_handler))
+            .with_state(PosState { app: self.clone() })
     }
 }
 

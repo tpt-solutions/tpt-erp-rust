@@ -257,7 +257,10 @@ mod tests {
         // Revaluation posts to a reporting-currency account (NOT the foreign account id):
         // CTA debited +10, FX gain/loss credited +10 => balanced and consolidation-safe.
         assert_eq!(
-            reporting.balance_of(rd.cum_translation_adjustment).debits.amount(),
+            reporting
+                .balance_of(rd.cum_translation_adjustment)
+                .debits
+                .amount(),
             Decimal::from(10)
         );
         assert_eq!(

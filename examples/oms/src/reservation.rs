@@ -203,7 +203,8 @@ impl ReservationEngine {
         let idx = Self::shard_index(&sku);
         let hold = Id::new();
         let now = Utc::now();
-        let expires = now + chrono::Duration::from_std(ttl).unwrap_or_else(|_| chrono::Duration::days(365 * 100));
+        let expires = now
+            + chrono::Duration::from_std(ttl).unwrap_or_else(|_| chrono::Duration::days(365 * 100));
 
         {
             let mut shard = self.shards[idx].lock().unwrap();
@@ -215,9 +216,14 @@ impl ReservationEngine {
                     requested: qty as i64,
                 });
             }
-            shard
-                .store
-                .append(Event::new(sku, "hold", &ReserveEvent::Hold { reservation: hold, qty })?);
+            shard.store.append(Event::new(
+                sku,
+                "hold",
+                &ReserveEvent::Hold {
+                    reservation: hold,
+                    qty,
+                },
+            )?);
             let st = shard.states.get_mut(&sku).unwrap();
             st.holds.insert(hold, qty);
             st.expires_at.insert(hold, expires);
@@ -269,9 +275,11 @@ impl ReservationEngine {
                 })
             };
             if captured.is_some() {
-                shard
-                    .store
-                    .append(Event::new(sku, "capture", &ReserveEvent::Capture { reservation: hold })?);
+                shard.store.append(Event::new(
+                    sku,
+                    "capture",
+                    &ReserveEvent::Capture { reservation: hold },
+                )?);
                 true
             } else {
                 false
@@ -337,13 +345,19 @@ impl ReservationEngine {
     async fn release_cache_and_index(&self, hold: Id<Hold>) {
         self.expiry_index.lock().unwrap().remove(&hold);
         if let Some(cache) = &self.cache {
-            let _ = cache.invalidate(&self.tenant, "holds", &hold.as_str()).await;
+            let _ = cache
+                .invalidate(&self.tenant, "holds", &hold.as_str())
+                .await;
         }
     }
 
     /// Core release path: removes the hold from the shard, appends a `Release`
     /// event, and invalidates the cache. Returns whether a hold was removed.
-    async fn release_internal(&self, sku: Id<Sku>, hold: Id<Hold>) -> Result<bool, ReservationError> {
+    async fn release_internal(
+        &self,
+        sku: Id<Sku>,
+        hold: Id<Hold>,
+    ) -> Result<bool, ReservationError> {
         let idx = Self::shard_index(&sku);
         let existed = {
             let mut shard = self.shards[idx].lock().unwrap();
@@ -357,9 +371,11 @@ impl ReservationEngine {
                 })
             };
             if captured.is_some() {
-                shard
-                    .store
-                    .append(Event::new(sku, "release", &ReserveEvent::Release { reservation: hold })?);
+                shard.store.append(Event::new(
+                    sku,
+                    "release",
+                    &ReserveEvent::Release { reservation: hold },
+                )?);
                 true
             } else {
                 false
@@ -398,7 +414,9 @@ impl ReservationEngine {
     /// Rebuild the per-SKU read model from the event log (CQRS replay) and return
     /// the map of sellable state. Proves the read model can never drift from the
     /// ledger of record.
-    pub async fn rebuild_read_models(&self) -> Result<HashMap<Id<Sku>, SkuState>, ReservationError> {
+    pub async fn rebuild_read_models(
+        &self,
+    ) -> Result<HashMap<Id<Sku>, SkuState>, ReservationError> {
         let mut all: Vec<StoredEvent<Id<Sku>>> = Vec::new();
         for shard in &self.shards {
             let s = shard.lock().unwrap();
@@ -524,9 +542,9 @@ mod tests {
             .map(|_| {
                 let eng = eng.clone();
                 let s = s;
-                tokio::spawn(async move {
-                    eng.reserve(s, 1, Duration::from_secs(60)).await.is_ok()
-                })
+                tokio::spawn(
+                    async move { eng.reserve(s, 1, Duration::from_secs(60)).await.is_ok() },
+                )
             })
             .collect();
         let mut ok = 0;

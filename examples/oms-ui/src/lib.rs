@@ -81,9 +81,24 @@ fn StatusBadge(status: SagaStatus, current: Signal<SagaStatus>) -> impl IntoView
 #[component]
 pub fn App() -> impl IntoView {
     let products = RwSignal::new(vec![
-        RwSignal::new(ProductRow { id: Id::new(), name: "Trail Runner", price_cents: 12900, stock: 12 }),
-        RwSignal::new(ProductRow { id: Id::new(), name: "Daypack 22L", price_cents: 8900, stock: 3 }),
-        RwSignal::new(ProductRow { id: Id::new(), name: "Merino Tee", price_cents: 3900, stock: 140 }),
+        RwSignal::new(ProductRow {
+            id: Id::new(),
+            name: "Trail Runner",
+            price_cents: 12900,
+            stock: 12,
+        }),
+        RwSignal::new(ProductRow {
+            id: Id::new(),
+            name: "Daypack 22L",
+            price_cents: 8900,
+            stock: 3,
+        }),
+        RwSignal::new(ProductRow {
+            id: Id::new(),
+            name: "Merino Tee",
+            price_cents: 3900,
+            stock: 140,
+        }),
     ]);
 
     // Order saga status is driven by the server in production; here it is a local

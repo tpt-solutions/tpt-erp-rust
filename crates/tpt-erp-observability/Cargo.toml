@@ -1,0 +1,23 @@
+[package]
+name = "tpt-erp-observability"
+description = "Structured logging (tracing) and a Prometheus metrics endpoint for TPT ERP services."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+axum = { workspace = true }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+metrics = "0.23"
+metrics-exporter-prometheus = "0.15"
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

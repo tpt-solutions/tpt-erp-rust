@@ -68,9 +68,27 @@ fn StageBadge(stage: RouteStage, current: Signal<RouteStage>) -> impl IntoView {
 #[component]
 pub fn App() -> impl IntoView {
     let vehicles = RwSignal::new(vec![
-        RwSignal::new(VehicleRow { id: Id::new(), name: "Truck 1", lat: 40.71, lng: -74.01, speed_kmh: 62.0 }),
-        RwSignal::new(VehicleRow { id: Id::new(), name: "Truck 2", lat: 40.73, lng: -73.99, speed_kmh: 48.0 }),
-        RwSignal::new(VehicleRow { id: Id::new(), name: "Van 7", lat: 40.69, lng: -74.02, speed_kmh: 0.0 }),
+        RwSignal::new(VehicleRow {
+            id: Id::new(),
+            name: "Truck 1",
+            lat: 40.71,
+            lng: -74.01,
+            speed_kmh: 62.0,
+        }),
+        RwSignal::new(VehicleRow {
+            id: Id::new(),
+            name: "Truck 2",
+            lat: 40.73,
+            lng: -73.99,
+            speed_kmh: 48.0,
+        }),
+        RwSignal::new(VehicleRow {
+            id: Id::new(),
+            name: "Van 7",
+            lat: 40.69,
+            lng: -74.02,
+            speed_kmh: 0.0,
+        }),
     ]);
 
     let current = RwSignal::new(RouteStage::Seeded);

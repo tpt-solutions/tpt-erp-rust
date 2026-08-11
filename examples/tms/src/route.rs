@@ -84,11 +84,7 @@ pub fn two_opt_improve(stops: &[Stop], initial: Vec<usize>, max_passes: usize) -
         // Evaluate every (i,j) swap pair in parallel; keep the best that reduces length.
         let improvements: Vec<(usize, usize, f64)> = (0..tour.len())
             .into_par_iter()
-            .flat_map(|i| {
-                (i + 1..tour.len())
-                    .map(move |j| (i, j))
-                    .collect::<Vec<_>>()
-            })
+            .flat_map(|i| (i + 1..tour.len()).map(move |j| (i, j)).collect::<Vec<_>>())
             .filter_map(|(i, j)| {
                 let mut candidate = tour.clone();
                 candidate[i..=j].reverse();
@@ -164,6 +160,9 @@ mod tests {
         let optimized = optimize(&s, 50);
         let opt_len = tour_distance(&s, &optimized);
         println!("naive={naive_len:.3}km optimized={opt_len:.3}km");
-        assert!(opt_len < naive_len, "optimized {opt_len} not shorter than naive {naive_len}");
+        assert!(
+            opt_len < naive_len,
+            "optimized {opt_len} not shorter than naive {naive_len}"
+        );
     }
 }

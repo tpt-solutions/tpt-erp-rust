@@ -58,3 +58,170 @@ service:
 health:
   livenessPath: /healthz
   readinessPath: /readyz
+
+# ---------------------------------------------------------------------------
+# Backing services (optional in-cluster deployments).
+# ---------------------------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+networkPolicy:
+  enabled: true
+
+postgres:
+  enabled: true
+  replicas: 1
+  image: "postgres:16-alpine"
+  database: tpt_erp
+  username: tpt
+  password: "change-me-in-prod"
+  storage: "10Gi"
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
+nats:
+  enabled: true
+  replicas: 1
+  image: "nats:2.10"
+  storage: "5Gi"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+redis:
+  enabled: true
+  replicas: 1
+  image: "redis:7-alpine"
+  storage: "5Gi"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# ---------------------------------------------------------------------------
+# Application servers (one Deployment + Service + HPA per entry).
+# ---------------------------------------------------------------------------
+servers:
+  - name: wms
+    enabled: true
+    image:
+      repository: ghcr.io/tpt-erp-rust/wms
+      tag: "0.1.0"
+      pullPolicy: IfNotPresent
+    replicas: 2
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+      limits:
+        cpu: "1"
+        memory: "512Mi"
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+  - name: mes
+    enabled: true
+    image:
+      repository: ghcr.io/tpt-erp-rust/mes
+      tag: "0.1.0"
+      pullPolicy: IfNotPresent
+    replicas: 2
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+      limits:
+        cpu: "1"
+        memory: "512Mi"
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+  - name: gl
+    enabled: true
+    image:
+      repository: ghcr.io/tpt-erp-rust/gl
+      tag: "0.1.0"
+      pullPolicy: IfNotPresent
+    replicas: 2
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+      limits:
+        cpu: "1"
+        memory: "512Mi"
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+  - name: oms
+    enabled: true
+    image:
+      repository: ghcr.io/tpt-erp-rust/oms
+      tag: "0.1.0"
+      pullPolicy: IfNotPresent
+    replicas: 2
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+      limits:
+        cpu: "1"
+        memory: "512Mi"
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+  - name: pos
+    enabled: true
+    image:
+      repository: ghcr.io/tpt-erp-rust/pos
+      tag: "0.1.0"
+      pullPolicy: IfNotPresent
+    replicas: 2
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+      limits:
+        cpu: "1"
+        memory: "512Mi"
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+  - name: tms
+    enabled: true
+    image:
+      repository: ghcr.io/tpt-erp-rust/tms
+      tag: "0.1.0"
+      pullPolicy: IfNotPresent
+    replicas: 2
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+      limits:
+        cpu: "1"
+        memory: "512Mi"
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70

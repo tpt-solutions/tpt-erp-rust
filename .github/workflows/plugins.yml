@@ -1,0 +1,76 @@
+name: plugins
+
+# The WASM plugin guest crates target `wasm32-unknown-unknown` and are excluded from
+# the main workspace (they cannot build on the host target). This job gives them
+# dedicated build / lint coverage so the six reference plugins are never accidentally
+# broken without anyone noticing.
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  plugin-build:
+    name: plugin build (wasm32)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: [pricing, routing, qc, tax, promo, dispatch]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-plugins-${{ runner.os }}-${{ hashFiles('examples/plugins/**/Cargo.lock', 'examples/plugins/**/Cargo.toml') }}
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+        working-directory: examples/plugins/${{ matrix.plugin }}
+
+      - name: Clippy (wasm32)
+        run: cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings
+        working-directory: examples/plugins/${{ matrix.plugin }}
+
+      - name: Build (wasm32)
+        run: cargo build --target wasm32-unknown-unknown
+        working-directory: examples/plugins/${{ matrix.plugin }}
+
+  # Validate each compiled plugin against the `plugin` WIT world using the `tpt` CLI.
+  plugin-validate:
+    name: plugin validate (WIT)
+    runs-on: ubuntu-latest
+    needs: plugin-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Build the `tpt` CLI
+        run: cargo build -p tpt-erp-cli --bin tpt
+
+      - name: Build + validate each plugin
+        run: |
+          for p in pricing routing qc tax promo dispatch; do
+            echo "== validating plugin $p =="
+            (cd "examples/plugins/$p" && cargo build --target wasm32-unknown-unknown --release)
+            ./target/debug/tpt plugin validate "examples/plugins/$p/target/wasm32-unknown-unknown/release/$p.wasm"
+          done

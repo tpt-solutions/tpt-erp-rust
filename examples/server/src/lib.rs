@@ -237,6 +237,7 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route("/balances", get(balances))
         .layer(axum::middleware::from_fn(
             move |mut req: Request, next: Next| {
+                metrics::counter!("tpt_http_requests_total").increment(1);
                 req.extensions_mut().insert(shared.clone());
                 next.run(req)
             },

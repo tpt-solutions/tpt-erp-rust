@@ -11,8 +11,8 @@
 //!   context). Supports [`PluginHandle::swap_module`] for hot-swapping
 //!   the underlying code without dropping in-flight callers' references.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
@@ -42,6 +42,11 @@ pub struct RuntimeConfig {
     /// exceeded via an epoch deadline. `None` disables the watchdog
     /// (fuel remains the primary barrier).
     pub wall_clock: Option<Duration>,
+    /// Optional hard cap on the compiled component size in bytes, checked *before*
+    /// `wasmtime` compiles it. This bounds memory/CPU spent on pathological or
+    /// accidentally-huge modules, ahead of the per-call fuel/memory limits taking
+    /// effect during execution. `None` disables the pre-check.
+    pub max_module_bytes: Option<usize>,
 }
 
 impl Default for RuntimeConfig {
@@ -50,6 +55,7 @@ impl Default for RuntimeConfig {
             fuel_per_call: 100_000_000,
             max_memory_bytes: 32 * 1024 * 1024,
             wall_clock: Some(Duration::from_millis(500)),
+            max_module_bytes: Some(8 * 1024 * 1024),
         }
     }
 }
@@ -158,6 +164,15 @@ impl PluginRuntime {
         wasm: &[u8],
         ctx: Box<dyn HostContext>,
     ) -> Result<PluginHandle, RuntimeError> {
+        if let Some(cap) = self.config.max_module_bytes {
+            if wasm.len() > cap {
+                return Err(RuntimeError::InvalidPlugin(format!(
+                    "module is {} bytes, exceeding the {} byte limit",
+                    wasm.len(),
+                    cap
+                )));
+            }
+        }
         let component = Component::new(&self.engine, wasm)
             .map_err(|e| RuntimeError::InvalidPlugin(e.to_string()))?;
 
@@ -245,6 +260,15 @@ impl PluginHandle {
     /// finish on the old code; new calls use the new component. No host
     /// restart required.
     pub fn swap_module(&mut self, wasm: &[u8]) -> Result<(), RuntimeError> {
+        if let Some(cap) = self.runtime.config.max_module_bytes {
+            if wasm.len() > cap {
+                return Err(RuntimeError::InvalidPlugin(format!(
+                    "module is {} bytes, exceeding the {} byte limit",
+                    wasm.len(),
+                    cap
+                )));
+            }
+        }
         let component = Component::new(&self.runtime.engine, wasm)
             .map_err(|e| RuntimeError::InvalidPlugin(e.to_string()))?;
 

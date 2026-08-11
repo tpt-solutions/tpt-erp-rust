@@ -16,7 +16,7 @@ docs/       architecture & usage notes
 | Crate           | Responsibility                                                          | Status      |
 |-----------------|------------------------------------------------------------------------|-------------|
 | `tpt-erp-primitives`| `Money<C>`, `Id<T>`, `IntId<T>`, `Currency`, `StateMachine` derive.    | Implemented |
-| `tpt-erp-macros`    | Proc-macros. `StateMachine` implemented; `TptEntity`/`TptApi` planned. | Partial     |
+| `tpt-erp-macros`    | Proc-macros: `StateMachine`, `TptEntity`, `TptApi`.                    | Implemented |
 | `tpt-erp-ledger`    | Append-only event store (optimistic concurrency), double-entry core, CQRS projections. | Implemented (core) |
 | `tpt-erp-tenant`    | Multi-tenancy: identification + Postgres RLS + `SET LOCAL` + Axum extractor/middleware. | Implemented  |
 | `tpt-erp-wasm`      | `wasmtime` sandbox for safe, hot-loadable business-logic plugins.      | Scaffold    |

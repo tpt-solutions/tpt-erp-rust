@@ -84,11 +84,7 @@ pub enum InventoryError {
         current: u64,
     },
     #[error("insufficient on-hand at {key:?}: have {have}, need {need}")]
-    InsufficientStock {
-        key: StockKey,
-        have: i64,
-        need: i64,
-    },
+    InsufficientStock { key: StockKey, have: i64, need: i64 },
     #[error("cache backend error: {0}")]
     Cache(#[from] CacheError),
     #[error("bus backend error: {0}")]

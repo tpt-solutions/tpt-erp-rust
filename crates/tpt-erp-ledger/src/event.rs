@@ -18,6 +18,9 @@ pub enum EventStoreError {
     Conflict { expected: u64, current: u64 },
     #[error("failed to serialize event payload: {0}")]
     Serialize(#[from] serde_json::Error),
+    /// A backend (e.g. Postgres) error.
+    #[error("event store backend error: {0}")]
+    Backend(String),
 }
 
 /// A domain event ready to be appended. The `payload` is any serializable value; it is

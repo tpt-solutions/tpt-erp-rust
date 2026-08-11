@@ -1,0 +1,78 @@
+{{- if .Values.nats.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-nats
+  labels:
+    app.kubernetes.io/name: tpt-erp-nats
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  serviceName: {{ .Release.Name }}-nats
+  replicas: {{ .Values.nats.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tpt-erp-nats
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tpt-erp-nats
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: nats
+          image: "{{ .Values.nats.image }}"
+          imagePullPolicy: IfNotPresent
+          args: ["-m", "7222", "--jetstream", "-js", "--store_dir", "/data"]
+          ports:
+            - containerPort: 4222
+            - containerPort: 6222
+            - containerPort: 8222
+          resources:
+            {{- toYaml .Values.nats.resources | nindent 12 }}
+          livenessProbe:
+            tcpSocket:
+              port: 4222
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            tcpSocket:
+              port: 4222
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.nats.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-nats
+  labels:
+    app.kubernetes.io/name: tpt-erp-nats
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    app.kubernetes.io/name: tpt-erp-nats
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: client
+      port: 4222
+      targetPort: 4222
+    - name: cluster
+      port: 6222
+      targetPort: 6222
+    - name: http
+      port: 8222
+      targetPort: 8222
+{{- end }}

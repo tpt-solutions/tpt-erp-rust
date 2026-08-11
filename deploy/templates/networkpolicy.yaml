@@ -1,0 +1,22 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-default-deny
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+  # Allow DNS egress so pods can resolve service names.
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+  # Ingress is opened per-Service below; default deny everything else.
+  ingress: []
+{{- end }}

@@ -119,16 +119,21 @@ impl OrderSaga {
                 .await?;
             holds.push((line.sku, hold));
         }
-        self.publish("oms.order.reserved", serde_json::json!({ "lines": holds.len() })).await;
+        self.publish(
+            "oms.order.reserved",
+            serde_json::json!({ "lines": holds.len() }),
+        )
+        .await;
 
         // --- Step 2: Pay (post a balanced GL transaction) -------------------
-        let total = lines
-            .iter()
-            .fold(Money::<Usd>::zero(), |acc, l| acc + l.unit_price * Decimal::from(l.qty));
+        let total = lines.iter().fold(Money::<Usd>::zero(), |acc, l| {
+            acc + l.unit_price * Decimal::from(l.qty)
+        });
         let tx_id = match self.post_sale(total).await {
             Ok(id) => Some(id),
             Err(e) => {
-                self.compensate(SagaStage::Reserved, &holds, None, total).await;
+                self.compensate(SagaStage::Reserved, &holds, None, total)
+                    .await;
                 return Err(SagaError::Pay(e));
             }
         };
@@ -145,10 +150,12 @@ impl OrderSaga {
                 return Err(SagaError::Fulfill(e));
             }
         }
-        self.publish("oms.order.fulfilled", serde_json::json!({})).await;
+        self.publish("oms.order.fulfilled", serde_json::json!({}))
+            .await;
 
         // --- Step 4: Ship ---------------------------------------------------
-        self.publish("oms.order.shipped", serde_json::json!({})).await;
+        self.publish("oms.order.shipped", serde_json::json!({}))
+            .await;
 
         Ok(SagaOutcome {
             status: crate::catalog::OrderStatus::Shipped,

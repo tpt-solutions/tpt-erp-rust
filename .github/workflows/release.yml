@@ -1,0 +1,50 @@
+name: release
+
+# Publishes each framework crate to crates.io when a `v*` tag is pushed.
+# Requires a `CARGO_REGISTRY_TOKEN` secret (crates.io API token) in the repo settings.
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+jobs:
+  publish:
+    name: publish crates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify
+        run: cargo publish --dry-run --allow-dirty
+
+      # Publish framework crates in dependency order. Inter-crate versions are kept in
+      # lockstep at 0.1.0; `--allow-dirty` tolerates the workspace metadata.
+      - name: Publish tpt-erp-primitives
+        run: cargo publish -p tpt-erp-primitives --allow-dirty
+      - name: Publish tpt-erp-macros
+        run: cargo publish -p tpt-erp-macros --allow-dirty
+      - name: Publish tpt-erp-entity
+        run: cargo publish -p tpt-erp-entity --allow-dirty
+      - name: Publish tpt-erp-ledger
+        run: cargo publish -p tpt-erp-ledger --allow-dirty
+      - name: Publish tpt-erp-tenant
+        run: cargo publish -p tpt-erp-tenant --allow-dirty
+      - name: Publish tpt-erp-wasm
+        run: cargo publish -p tpt-erp-wasm --allow-dirty
+      - name: Publish tpt-erp-bus
+        run: cargo publish -p tpt-erp-bus --allow-dirty
+      - name: Publish tpt-erp-cache
+        run: cargo publish -p tpt-erp-cache --allow-dirty
+      - name: Publish tpt-erp-observability
+        run: cargo publish -p tpt-erp-observability --allow-dirty
+      - name: Publish tpt-erp-cli
+        run: cargo publish -p tpt-erp-cli --allow-dirty
+      - name: Publish tpt-erp-frontend
+        run: cargo publish -p tpt-erp-frontend --allow-dirty

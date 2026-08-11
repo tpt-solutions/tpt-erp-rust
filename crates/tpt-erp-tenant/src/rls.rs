@@ -39,12 +39,18 @@ pub fn rls_policy(table: &str, tenant_column: &str, name: &str) -> String {
 
 /// Enable RLS on a table (policies are inert until RLS is turned on).
 pub fn enable_rls(table: &str) -> String {
-    format!("ALTER TABLE {} ENABLE ROW LEVEL SECURITY", quote_ident(table))
+    format!(
+        "ALTER TABLE {} ENABLE ROW LEVEL SECURITY",
+        quote_ident(table)
+    )
 }
 
 /// Disable RLS (used in tests / migrations rollbacks).
 pub fn disable_rls(table: &str) -> String {
-    format!("ALTER TABLE {} DISABLE ROW LEVEL SECURITY", quote_ident(table))
+    format!(
+        "ALTER TABLE {} DISABLE ROW LEVEL SECURITY",
+        quote_ident(table)
+    )
 }
 
 #[cfg(test)]

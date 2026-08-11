@@ -8,13 +8,8 @@
 
 use std::sync::Arc;
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::post,
-    Json, Router,
-};
 use async_trait::async_trait;
+use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
@@ -108,8 +103,7 @@ impl OmsApp {
 
     /// Load a compiled `promo` Wasm component to drive stock-aware discounting.
     pub fn with_promo(mut self, wasm: &[u8]) -> Result<Self, tpt_erp_wasm::RuntimeError> {
-        let engine =
-            PromoEngine::with_plugin(wasm, self.reservation.clone(), "oms")?;
+        let engine = PromoEngine::with_plugin(wasm, self.reservation.clone(), "oms")?;
         self.promo = Arc::new(tokio::sync::Mutex::new(engine));
         Ok(self)
     }
@@ -180,13 +174,9 @@ impl OmsApp {
 
         let checkout_router = Router::new()
             .route("/checkout", post(checkout_handler))
-            .with_state(OmsState {
-                app: self.clone(),
-            });
+            .with_state(OmsState { app: self.clone() });
 
-        Router::new()
-            .merge(catalog)
-            .merge(checkout_router)
+        Router::new().merge(catalog).merge(checkout_router)
     }
 }
 
@@ -227,7 +217,10 @@ mod tests {
         let sku = Id::new();
         app.reservation.receive(sku, 10).await.unwrap();
 
-        let out = app.checkout(vec![line(sku, 2, 10)]).await.expect("checkout ok");
+        let out = app
+            .checkout(vec![line(sku, 2, 10)])
+            .await
+            .expect("checkout ok");
         assert_eq!(out.status, OrderStatus::Shipped);
         assert_eq!(out.total, Money::<Usd>::from_major(20));
         assert!(out.transaction_id.is_some());

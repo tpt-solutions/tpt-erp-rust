@@ -83,9 +83,24 @@ fn StageBadge(stage: TxnStage, current: Signal<TxnStage>) -> impl IntoView {
 #[component]
 pub fn App() -> impl IntoView {
     let lines = RwSignal::new(vec![
-        RwSignal::new(LineRow { id: Id::new(), name: "House Blend", qty: 2, price_cents: 650 }),
-        RwSignal::new(LineRow { id: Id::new(), name: "Croissant", qty: 1, price_cents: 425 }),
-        RwSignal::new(LineRow { id: Id::new(), name: "Sparkling", qty: 3, price_cents: 300 }),
+        RwSignal::new(LineRow {
+            id: Id::new(),
+            name: "House Blend",
+            qty: 2,
+            price_cents: 650,
+        }),
+        RwSignal::new(LineRow {
+            id: Id::new(),
+            name: "Croissant",
+            qty: 1,
+            price_cents: 425,
+        }),
+        RwSignal::new(LineRow {
+            id: Id::new(),
+            name: "Sparkling",
+            qty: 3,
+            price_cents: 300,
+        }),
     ]);
 
     let current = RwSignal::new(TxnStage::Cart);

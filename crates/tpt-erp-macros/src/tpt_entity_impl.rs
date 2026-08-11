@@ -28,6 +28,54 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Field, Ident, LitInt, LitStr, Result, Type};
 
+/// What kind of extra filter to generate for a field, in addition to the always-present
+/// equality filter.
+enum FilterKind {
+    /// `String`/`str`/`Cow` — substring (`*_contains`) and prefix (`*_prefix`).
+    String,
+    /// Numeric/date types — range (`*_min` / `*_max`).
+    Range,
+    /// Everything else — equality only.
+    Eq,
+}
+
+/// Classify a field type so we only emit filters whose comparison operators the type
+/// actually supports (e.g. we must not generate range filters for an enum that does not
+/// implement `PartialOrd`).
+fn classify_filter(ty: &Type) -> FilterKind {
+    if let Type::Path(p) = ty {
+        if let Some(seg) = p.path.segments.last() {
+            let name = seg.ident.to_string();
+            if matches!(name.as_str(), "String" | "str" | "Cow") {
+                return FilterKind::String;
+            }
+            if matches!(
+                name.as_str(),
+                "i8" | "i16"
+                    | "i32"
+                    | "i64"
+                    | "i128"
+                    | "u8"
+                    | "u16"
+                    | "u32"
+                    | "u64"
+                    | "u128"
+                    | "f32"
+                    | "f64"
+                    | "Decimal"
+                    | "DateTime"
+                    | "NaiveDate"
+                    | "NaiveDateTime"
+                    | "Date"
+                    | "Time"
+            ) {
+                return FilterKind::Range;
+            }
+        }
+    }
+    FilterKind::Eq
+}
+
 use crate::util::to_snake_case;
 
 /// A single `#[validate(...)]` directive attached to a field.
@@ -238,6 +286,13 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
     let mut filter_fields = Vec::new();
     let mut validate_body = Vec::new();
     let mut apply_body = Vec::new();
+    // Pagination is folded into the filter so a single top-level `Query`
+    // (axum uses serde_html_form, which mishandles `#[serde(flatten)]`) can
+    // carry both paging and filtering without flattening.
+    let mut filter_decls: Vec<TokenStream> = vec![
+        quote! { pub page: ::core::option::Option<u32> },
+        quote! { pub per_page: ::core::option::Option<u32> },
+    ];
 
     for f in named {
         let ident = f.ident.as_ref().unwrap();
@@ -258,7 +313,10 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
             validate_body.push(validate_stmt(ident, ty, &validators));
         }
 
-        // filter: every non-id, non-audit field becomes an optional filter column
+        // filter: every non-id, non-audit field becomes an optional filter column.
+        // Equality is always available; string fields additionally get substring/prefix
+        // filters and numeric/date fields get range (min/max) filters, so list/search
+        // screens can do more than exact matches.
         if !is_id && !is_audit {
             filter_fields.push((ident.clone(), ty.clone()));
             apply_body.push(quote! {
@@ -266,6 +324,47 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
                     if entity.#ident != *v { return false; }
                 }
             });
+            match classify_filter(ty) {
+                FilterKind::String => {
+                    let contains_ident =
+                        syn::Ident::new(&format!("{}_contains", ident), ident.span());
+                    let prefix_ident =
+                        syn::Ident::new(&format!("{}_prefix", ident), ident.span());
+                    filter_decls
+                        .push(quote! { pub #contains_ident: ::core::option::Option<#ty> });
+                    filter_decls
+                        .push(quote! { pub #prefix_ident: ::core::option::Option<#ty> });
+                    apply_body.push(quote! {
+                        if let ::core::option::Option::Some(v) = &self.#contains_ident {
+                            if !entity.#ident.contains(v.as_str()) { return false; }
+                        }
+                    });
+                    apply_body.push(quote! {
+                        if let ::core::option::Option::Some(v) = &self.#prefix_ident {
+                            if !entity.#ident.starts_with(v.as_str()) { return false; }
+                        }
+                    });
+                }
+                FilterKind::Range => {
+                    let min_ident = syn::Ident::new(&format!("{}_min", ident), ident.span());
+                    let max_ident = syn::Ident::new(&format!("{}_max", ident), ident.span());
+                    filter_decls
+                        .push(quote! { pub #min_ident: ::core::option::Option<#ty> });
+                    filter_decls
+                        .push(quote! { pub #max_ident: ::core::option::Option<#ty> });
+                    apply_body.push(quote! {
+                        if let ::core::option::Option::Some(v) = &self.#min_ident {
+                            if entity.#ident.lt(v) { return false; }
+                        }
+                    });
+                    apply_body.push(quote! {
+                        if let ::core::option::Option::Some(v) = &self.#max_ident {
+                            if entity.#ident.gt(v) { return false; }
+                        }
+                    });
+                }
+                FilterKind::Eq => {}
+            }
         }
     }
 
@@ -277,10 +376,6 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
     // Pagination is folded into the filter so a single top-level `Query`
     // (axum uses serde_html_form, which mishandles `#[serde(flatten)]`) can
     // carry both paging and filtering without flattening.
-    let mut filter_decls: Vec<TokenStream> = vec![
-        quote! { pub page: ::core::option::Option<u32> },
-        quote! { pub per_page: ::core::option::Option<u32> },
-    ];
     filter_decls.extend(filter_fields.iter().map(|(ident, ty)| {
         quote! { pub #ident: ::core::option::Option<#ty> }
     }));

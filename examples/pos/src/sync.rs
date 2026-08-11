@@ -8,8 +8,8 @@
 //! is published per successful sync, and the last-synced sequence is pinned into
 //! `tpt-erp-cache` as a **checkpoint** so a crash mid-sync resumes from where it left off.
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -194,7 +194,8 @@ impl InMemoryCentral {
 impl CentralStore for InMemoryCentral {
     async fn apply_sale(&self, sale: &SaleEvent) -> Result<(), SyncError> {
         let mut map = self.applied.lock().unwrap();
-        map.entry(sale.txn_id.clone()).or_insert_with(|| sale.clone());
+        map.entry(sale.txn_id.clone())
+            .or_insert_with(|| sale.clone());
         Ok(())
     }
 }
@@ -265,7 +266,10 @@ mod tests {
 
         // Checkpoint persisted to the cache.
         let cp = match &s.cache {
-            Some(c) => c.get(&tenant(), "pos-sync", &s.terminal.as_str()).await.unwrap(),
+            Some(c) => c
+                .get(&tenant(), "pos-sync", &s.terminal.as_str())
+                .await
+                .unwrap(),
             None => None,
         };
         assert!(cp.is_some());

@@ -137,7 +137,10 @@ impl Transaction {
 
     /// Whether the transaction reached a terminal sale state.
     pub fn is_settled(&self) -> bool {
-        matches!(self.status, TxnStatus::Captured | TxnStatus::Refunded | TxnStatus::Voided)
+        matches!(
+            self.status,
+            TxnStatus::Captured | TxnStatus::Refunded | TxnStatus::Voided
+        )
     }
 }
 

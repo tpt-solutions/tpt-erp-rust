@@ -16,9 +16,15 @@ rust-version.workspace = true
 tpt-erp-primitives = { workspace = true }
 tpt-erp-macros = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
+sqlx = { workspace = true, optional = true }
+
+[features]
+# Postgres-backed `Repository` serving the generated Axum router.
+postgres = ["dep:sqlx"]
 
 [dev-dependencies]
 tokio = { workspace = true }

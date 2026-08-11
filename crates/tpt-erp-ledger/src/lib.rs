@@ -16,6 +16,9 @@ pub mod event;
 pub mod projection;
 pub mod store;
 
+#[cfg(feature = "postgres")]
+pub mod postgres_store;
+
 pub use double_entry::{
     Account, AccountId, DoubleEntry, DoubleEntryError, EntrySide, LedgerEntry, LedgerEvent,
     LedgerTransaction, Transaction, TransactionId,
