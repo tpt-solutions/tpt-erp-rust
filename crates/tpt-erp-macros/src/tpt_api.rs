@@ -83,6 +83,7 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
     let create = Ident::new(&format!("{api}_create"), api.span());
     let replace = Ident::new(&format!("{api}_replace"), api.span());
     let delete = Ident::new(&format!("{api}_delete"), api.span());
+    let ensure_principal = Ident::new(&format!("{api}_ensure_principal"), api.span());
 
     let expanded = quote! {
         /// Generated state shared by the CRUD handlers.
@@ -152,9 +153,24 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
                 ::axum::Router::new()
                     .route(#path, ::axum::routing::get(#list::<R, A>).post(#create::<R, A>))
                     .route(#path_id, ::axum::routing::get(#get_one::<R, A>).put(#replace::<R, A>).delete(#delete::<R, A>))
-                    .layer(::axum::extract::Extension(::tpt_erp_entity::Principal::default()))
+                    .layer(::axum::middleware::from_fn(#ensure_principal))
                     .with_state(#state_name::<R, A> { repo, _auth: ::core::marker::PhantomData })
             }
+        }
+
+        /// Middleware that guarantees a [`::tpt_erp_entity::Principal`] is available to the
+        /// handlers, but only when an upstream auth middleware has not already inserted a
+        /// real one. This keeps a custom [`::tpt_erp_entity::AuthPolicy`] authoritative:
+        /// its `Principal` is never clobbered by a default.
+        #[allow(non_snake_case)]
+        async fn #ensure_principal(
+            mut req: ::axum::extract::Request,
+            next: ::axum::middleware::Next,
+        ) -> ::axum::response::Response {
+            if req.extensions().get::<::tpt_erp_entity::Principal>().is_none() {
+                req.extensions_mut().insert(::tpt_erp_entity::Principal::default());
+            }
+            next.run(req).await
         }
 
         #[allow(non_snake_case)]

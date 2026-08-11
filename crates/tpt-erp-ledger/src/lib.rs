@@ -22,4 +22,4 @@ pub use double_entry::{
 };
 pub use event::{Event, EventStoreError, StoredEvent};
 pub use projection::{BalanceProjection, ProjectionError, Projector, replay};
-pub use store::EventStore;
+pub use store::{EventStore, InMemoryEventStore};

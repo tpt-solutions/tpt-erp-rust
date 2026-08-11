@@ -16,7 +16,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tpt_erp_cache::{CacheError, ReadModelCache};
-use tpt_erp_ledger::{Event, EventStore, Projector, StoredEvent, replay};
+use tpt_erp_ledger::{Event, EventStore, InMemoryEventStore, Projector, StoredEvent, replay};
 use tpt_erp_primitives::{Entity, Id};
 use tpt_erp_tenant::{TenantId, TenantSlug};
 
@@ -83,6 +83,12 @@ pub enum InventoryError {
         expected: u64,
         current: u64,
     },
+    #[error("insufficient on-hand at {key:?}: have {have}, need {need}")]
+    InsufficientStock {
+        key: StockKey,
+        have: i64,
+        need: i64,
+    },
     #[error("cache backend error: {0}")]
     Cache(#[from] CacheError),
     #[error("bus backend error: {0}")]
@@ -96,7 +102,7 @@ pub enum InventoryError {
 const SHARDS: usize = 64;
 
 struct Shard {
-    store: EventStore<StockKey>,
+    store: InMemoryEventStore<StockKey>,
     /// Running on-hand quantity per stock key (kept in sync with the log).
     on_hand: HashMap<StockKey, i64>,
 }
@@ -104,7 +110,7 @@ struct Shard {
 impl Shard {
     fn new() -> Self {
         Self {
-            store: EventStore::default(),
+            store: InMemoryEventStore::default(),
             on_hand: HashMap::new(),
         }
     }
@@ -161,11 +167,21 @@ impl InventoryEngine {
         let new_qty = {
             let idx = Self::shard_index(&key);
             let mut shard = self.shards[idx].lock().unwrap();
+            let current = *shard.on_hand.entry(key).or_insert(0);
+            let new_qty = current + movement.delta();
+            // Floor check: never let a pick/adjust drive on-hand negative. This rejects the
+            // movement before it is ever appended to the log, keeping the read model honest.
+            if new_qty < 0 {
+                return Err(InventoryError::InsufficientStock {
+                    key,
+                    have: current,
+                    need: -movement.delta(),
+                });
+            }
             let event = Event::new(key, "movement", &movement)?;
             shard.store.append(event);
-            let on_hand = shard.on_hand.entry(key).or_insert(0);
-            *on_hand += movement.delta();
-            *on_hand
+            shard.on_hand.insert(key, new_qty);
+            new_qty
         };
 
         self.after_write(key, new_qty).await;
@@ -198,7 +214,16 @@ impl InventoryEngine {
                 }
             }
             let on_hand = shard.on_hand.entry(key).or_insert(0);
-            *on_hand += movement.delta();
+            let new_qty = *on_hand + movement.delta();
+            // Floor check: never let a pick/adjust drive on-hand negative.
+            if new_qty < 0 {
+                return Err(InventoryError::InsufficientStock {
+                    key,
+                    have: *on_hand,
+                    need: -movement.delta(),
+                });
+            }
+            *on_hand = new_qty;
             *on_hand
         };
 

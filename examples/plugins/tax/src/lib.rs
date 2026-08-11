@@ -26,24 +26,30 @@ impl Guest for Component {
             Ok(m) => (m.major, m.minor),
             Err(_) => (0, 0),
         };
-        let balance = major as f64 + minor as f64 / 10_000.0;
+        // Represent the balance in integer minor units (1/10_000ths) to avoid any `f64`
+        // drift; tax is computed in basis points, also as integers.
+        let balance_minor = major as i64 * 10_000 + minor as i64;
 
-        // Jurisdiction-specific tax tiers on the taxable base.
-        let (tier, rate) = match jurisdiction.as_str() {
-            "eu-reduced" => ("reduced", 0.09),
-            "eu-standard" => ("standard", 0.21),
-            "exempt" => ("exempt", 0.0),
-            _ => ("standard", 0.20),
+        // Jurisdiction-specific tax tiers (basis points of the taxable base).
+        let (tier, basis_points) = match jurisdiction.as_str() {
+            "eu-reduced" => ("reduced", 900),
+            "eu-standard" => ("standard", 2100),
+            "exempt" => ("exempt", 0),
+            _ => ("standard", 2000),
         };
-        let estimated_tax = if rate > 0.0 { balance * rate } else { 0.0 };
+        let tax_minor = if basis_points > 0 {
+            balance_minor * basis_points / 10_000
+        } else {
+            0
+        };
 
         let out = serde_json::json!({
             "account": account,
             "jurisdiction": jurisdiction,
-            "balance": balance,
+            "balance": format!("{}.{:04}", balance_minor / 10_000, balance_minor % 10_000),
             "tax_tier": tier,
-            "tax_rate": rate,
-            "estimated_tax": estimated_tax,
+            "tax_rate_bps": basis_points,
+            "estimated_tax": format!("{}.{:04}", tax_minor / 10_000, tax_minor % 10_000),
         });
         Ok(out.to_string())
     }

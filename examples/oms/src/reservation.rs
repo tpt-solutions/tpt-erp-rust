@@ -23,7 +23,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tpt_erp_cache::{CacheError, ReadModelCache};
-use tpt_erp_ledger::{Event, EventStore, Projector, StoredEvent, replay};
+use tpt_erp_ledger::{Event, EventStore, InMemoryEventStore, Projector, StoredEvent, replay};
 use tpt_erp_primitives::{Entity, Id};
 use tpt_erp_tenant::{TenantId, TenantSlug};
 
@@ -107,14 +107,14 @@ impl SkuState {
 }
 
 struct Shard {
-    store: EventStore<Id<Sku>>,
+    store: InMemoryEventStore<Id<Sku>>,
     states: HashMap<Id<Sku>, SkuState>,
 }
 
 impl Shard {
     fn new() -> Self {
         Self {
-            store: EventStore::default(),
+            store: InMemoryEventStore::default(),
             states: HashMap::new(),
         }
     }

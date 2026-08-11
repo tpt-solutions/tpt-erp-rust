@@ -119,7 +119,7 @@ impl OrderSaga {
                 .await?;
             holds.push((line.sku, hold));
         }
-        self.publish("oms.order.reserved", serde_json::json!({ "lines": holds.len() }));
+        self.publish("oms.order.reserved", serde_json::json!({ "lines": holds.len() })).await;
 
         // --- Step 2: Pay (post a balanced GL transaction) -------------------
         let total = lines
@@ -128,26 +128,27 @@ impl OrderSaga {
         let tx_id = match self.post_sale(total).await {
             Ok(id) => Some(id),
             Err(e) => {
-                self.compensate(SagaStage::Reserved, &holds, None).await;
+                self.compensate(SagaStage::Reserved, &holds, None, total).await;
                 return Err(SagaError::Pay(e));
             }
         };
         self.publish(
             "oms.order.paid",
             serde_json::json!({ "tx": tx_id.map(|t| t.as_str()) }),
-        );
+        )
+        .await;
 
         // --- Step 3: Fulfill (commit the holds) -----------------------------
         for (sku, hold) in &holds {
             if let Err(e) = self.reservation.confirm(*sku, *hold).await {
-                self.compensate(SagaStage::Paid, &holds, tx_id).await;
+                self.compensate(SagaStage::Paid, &holds, tx_id, total).await;
                 return Err(SagaError::Fulfill(e));
             }
         }
-        self.publish("oms.order.fulfilled", serde_json::json!({}));
+        self.publish("oms.order.fulfilled", serde_json::json!({})).await;
 
         // --- Step 4: Ship ---------------------------------------------------
-        self.publish("oms.order.shipped", serde_json::json!({}));
+        self.publish("oms.order.shipped", serde_json::json!({})).await;
 
         Ok(SagaOutcome {
             status: crate::catalog::OrderStatus::Shipped,
@@ -202,13 +203,15 @@ impl OrderSaga {
         stage: SagaStage,
         holds: &[(Id<Sku>, Id<Hold>)],
         tx_id: Option<TransactionId>,
+        total: Money<Usd>,
     ) {
         match stage {
             SagaStage::Paid | SagaStage::Fulfilled => {
-                // Undo the GL posting first, then release the stock holds.
+                // Undo the GL posting first, then release the stock holds. Refund the
+                // order's own total (not the account's cumulative balance) so we only
+                // reverse what this saga posted.
                 if tx_id.is_some() {
-                    let amount = self.journal.balance_of(self.coa.accounts_receivable).debits;
-                    self.refund(amount).await;
+                    self.refund(total).await;
                 }
                 for (sku, hold) in holds {
                     let _ = self.reservation.release(*sku, *hold).await;
@@ -223,12 +226,15 @@ impl OrderSaga {
         self.publish(
             "oms.order.compensated",
             serde_json::json!({ "at_stage": format!("{:?}", stage) }),
-        );
+        )
+        .await;
     }
 
-    fn publish(&self, subject: &str, payload: serde_json::Value) {
+    async fn publish(&self, subject: &str, payload: serde_json::Value) {
         if let Some(bus) = &self.bus {
-            let _ = bus.publish(subject, payload.to_string().as_bytes());
+            // Await the publish so the lifecycle event is actually delivered; dropping the
+            // future here (as before) silently lost every `oms.order.*` event.
+            let _ = bus.publish(subject, payload.to_string().as_bytes()).await;
         }
     }
 

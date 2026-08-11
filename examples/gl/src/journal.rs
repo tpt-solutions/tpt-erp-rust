@@ -17,13 +17,14 @@ use std::hash::Hasher;
 use std::sync::Mutex;
 use tpt_erp_cache::{CacheError, ReadModelCache};
 use tpt_erp_ledger::{
-    AccountId, DoubleEntry, DoubleEntryError, EntrySide, Event, EventStore, LedgerEntry,
-    ProjectionError, Projector, Transaction, TransactionId, replay,
+    AccountId, DoubleEntry, DoubleEntryError, EntrySide, Event, EventStore, InMemoryEventStore,
+    LedgerEntry, ProjectionError, Projector, Transaction, TransactionId, replay,
 };
 use tpt_erp_primitives::{Currency, Money, Usd};
 use tpt_erp_tenant::TenantId;
 
 use crate::coa::{AccountType, ChartOfAccounts, DemoAccounts};
+use crate::close::PeriodStatus;
 
 const SHARDS: usize = 64;
 
@@ -91,17 +92,19 @@ pub enum JournalError {
     Cache(#[from] CacheError),
     #[error("projection replay failed: {0}")]
     Projection(#[from] ProjectionError),
+    #[error("period {period} is closed or locked; postings are not allowed")]
+    PeriodClosed { period: String },
 }
 
 struct Shard<C: Currency> {
-    store: EventStore<AccountId>,
+    store: InMemoryEventStore<AccountId>,
     balances: HashMap<AccountId, AccountBalance<C>>,
 }
 
 impl<C: Currency> Default for Shard<C> {
     fn default() -> Self {
         Self {
-            store: EventStore::default(),
+            store: InMemoryEventStore::default(),
             balances: HashMap::new(),
         }
     }
@@ -132,6 +135,8 @@ pub struct JournalEngine<C: Currency> {
     /// Reporting-currency rate at which each account's balance was established
     /// (used by period-end revaluation in [`crate::fx`]).
     book_rates: Mutex<HashMap<AccountId, rust_decimal::Decimal>>,
+    /// Per-period close status; postings to a `Closed`/`Locked` period are rejected.
+    period_status: Mutex<HashMap<String, PeriodStatus>>,
 }
 
 impl<C> JournalEngine<C>
@@ -147,6 +152,7 @@ where
             bus: None,
             cache: None,
             book_rates: Mutex::new(HashMap::new()),
+            period_status: Mutex::new(HashMap::new()),
         }
     }
 
@@ -175,6 +181,20 @@ where
     /// The book rate for an account, if set.
     pub fn book_rate(&self, account: AccountId) -> Option<rust_decimal::Decimal> {
         self.book_rates.lock().unwrap().get(&account).copied()
+    }
+
+    /// Record the close status of an accounting period. A `Closed` or `Locked` period
+    /// rejects all subsequent postings (see [`post_sync`](Self::post_sync)).
+    pub fn set_period_status(&self, period: &str, status: PeriodStatus) {
+        self.period_status
+            .lock()
+            .unwrap()
+            .insert(period.to_string(), status);
+    }
+
+    /// Mark a period as closed (no further postings allowed).
+    pub fn close_period(&self, period: &str) {
+        self.set_period_status(period, PeriodStatus::Closed);
     }
 
     fn shard_index(account: &AccountId) -> usize {
@@ -258,6 +278,18 @@ where
             .iter()
             .map(|a| self.shards[Self::shard_index(a)].lock().unwrap())
             .collect();
+
+        // Reject postings into a closed/locked period. This is the enforcement that
+        // period-close actually means something: a `Closed`/`Locked` period cannot
+        // receive new legs, so its reports remain final.
+        match self.period_status.lock().unwrap().get(period) {
+            Some(PeriodStatus::Closed) | Some(PeriodStatus::Locked) => {
+                return Err(JournalError::PeriodClosed {
+                    period: period.to_string(),
+                });
+            }
+            _ => {}
+        }
 
         // Verify all expected versions while holding the locks.
         if let Some(exp) = expected {
@@ -366,6 +398,27 @@ where
                     .await;
             }
         }
+        Ok(proj)
+    }
+
+    /// Rebuild the balance read model for a single accounting period by replaying only the
+    /// legs tagged with `period`, so period-scoped reports (trial balance, income statement,
+    /// balance sheet) reflect exactly the postings that belong to that period.
+    pub async fn rebuild_read_models_for_period(
+        &self,
+        period: &str,
+    ) -> Result<JournalProjection<C>, JournalError> {
+        let mut legs: Vec<PostedLeg<C>> = Vec::new();
+        for shard in &self.shards {
+            let s = shard.lock().unwrap();
+            for ev in s.store.log() {
+                let leg: PostedLeg<C> = serde_json::from_value(ev.payload.clone())?;
+                if leg.period == period {
+                    legs.push(leg);
+                }
+            }
+        }
+        let proj = replay(JournalProjection::<C>::default(), legs).await?;
         Ok(proj)
     }
 

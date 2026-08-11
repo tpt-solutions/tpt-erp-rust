@@ -11,7 +11,9 @@
 //!   context). Supports [`PluginHandle::swap_module`] for hot-swapping
 //!   the underlying code without dropping in-flight callers' references.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use wasmtime::{
@@ -74,6 +76,25 @@ pub struct PluginRuntime {
     engine: Engine,
     linker: Linker<TptHost>,
     config: RuntimeConfig,
+    /// Background ticker that advances wasmtime's epoch so the wall-clock
+    /// cap (set as a 1-epoch deadline per `run`) actually takes effect.
+    _epoch_ticker: Option<EpochTicker>,
+}
+
+/// A background thread that periodically calls `Engine::increment_epoch`,
+/// paired with a stop flag so it can be joined on drop.
+struct EpochTicker {
+    stop: Arc<AtomicBool>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl Drop for EpochTicker {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
 }
 
 impl PluginRuntime {
@@ -90,6 +111,30 @@ impl PluginRuntime {
         }
         let engine = Engine::new(&cfg)?;
 
+        let epoch_ticker = config.wall_clock.map(|interval| {
+            let ticker = engine.clone();
+            let stop = Arc::new(AtomicBool::new(false));
+            let handle = thread::Builder::new()
+                .name("tpt-wasm-epoch".to_string())
+                .spawn({
+                    let stop = Arc::clone(&stop);
+                    move || {
+                        while !stop.load(Ordering::SeqCst) {
+                            thread::sleep(interval);
+                            if stop.load(Ordering::SeqCst) {
+                                break;
+                            }
+                            ticker.increment_epoch();
+                        }
+                    }
+                })
+                .expect("failed to spawn wasm epoch ticker");
+            EpochTicker {
+                stop,
+                handle: Some(handle),
+            }
+        });
+
         let mut linker: Linker<TptHost> = Linker::new(&engine);
         // Wire the `erp` host interface into every guest. No WASI is
         // linked, which is what keeps plugins computation-only.
@@ -99,6 +144,7 @@ impl PluginRuntime {
             engine,
             linker,
             config,
+            _epoch_ticker: epoch_ticker,
         })
     }
 

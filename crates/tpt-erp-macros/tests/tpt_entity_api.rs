@@ -5,11 +5,14 @@ use std::sync::Arc;
 
 use axum::body::to_bytes;
 use axum::http::{Request, StatusCode};
+use axum::middleware::{self, Next};
+use axum::response::Response;
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 use tpt_erp_entity::{
-    AllowAll, Auditable, EntityTable, InMemoryRepository, TptApi, TptEntity, Validatable,
+    AllowAll, Auditable, AuthError, AuthPolicy, EntityTable, InMemoryRepository, Operation,
+    Principal, TptApi, TptEntity, Validatable,
 };
 use tpt_erp_primitives::{Entity, Id};
 
@@ -165,4 +168,63 @@ fn traits_and_filter_compile_and_work() {
     assert!(tpt_erp_entity::ApplyFilter::<Product>::matches(&f, &p));
     f.name = Some("Nope".into());
     assert!(!tpt_erp_entity::ApplyFilter::<Product>::matches(&f, &p));
+}
+
+/// Policy that only authorizes operations for a principal carrying the `admin` role.
+/// Used to prove the generated router honours a custom `AuthPolicy` with a real
+/// (non-default) `Principal` rather than silently clobbering it.
+struct AdminOnly;
+
+impl AuthPolicy for AdminOnly {
+    fn authorize(op: Operation, principal: &Principal) -> Result<(), AuthError> {
+        if principal.roles.iter().any(|r| r == "admin") {
+            Ok(())
+        } else {
+            Err(AuthError(op))
+        }
+    }
+}
+
+/// Inject a `Principal` with the given roles into every request's extensions,
+/// emulating an upstream auth middleware (JWT/JTW tenant resolution).
+async fn inject_principal(roles: Vec<String>, req: axum::extract::Request, next: Next) -> Response {
+    let mut req = req;
+    req.extensions_mut().insert(Principal {
+        subject: Some("u1".into()),
+        tenant: Some("acme".into()),
+        roles,
+    });
+    next.run(req).await
+}
+
+#[tokio::test]
+async fn custom_policy_honours_upstream_principal() {
+    let repo = Arc::new(InMemoryRepository::<Product>::new());
+    let now = Utc::now();
+
+    // Admin principal -> every operation authorized.
+    let admin_app = ProductApi::router::<_, AdminOnly>(repo.clone())
+        .layer(middleware::from_fn(|req, next| inject_principal(vec!["admin".into()], req, next)));
+
+    let r = request(
+        &admin_app,
+        "POST",
+        "/products",
+        Some(sample(Id::<Product>::new(), "Widget", now)),
+    )
+    .await;
+    assert_eq!(r.status(), StatusCode::CREATED);
+
+    // Guest principal (no admin role) -> create denied by the policy.
+    let guest_app = ProductApi::router::<_, AdminOnly>(repo)
+        .layer(middleware::from_fn(|req, next| inject_principal(vec![], req, next)));
+
+    let r = request(
+        &guest_app,
+        "POST",
+        "/products",
+        Some(sample(Id::<Product>::new(), "Gadget", now)),
+    )
+    .await;
+    assert_eq!(r.status(), StatusCode::FORBIDDEN);
 }

@@ -311,6 +311,24 @@ where
     Ok((tb, is, bs))
 }
 
+/// Rebuild all three reports for a single accounting `period` (CQRS replay filtered to that
+/// period's legs). This is what makes period-scoped reporting correct once a period is closed:
+/// only the postings that belong to `period` are folded into the read model.
+pub async fn cached_reports_for_period<C>(
+    engine: &JournalEngine<C>,
+    period: &str,
+) -> Result<(TrialBalance<C>, IncomeStatement<C>, BalanceSheet<C>), crate::journal::JournalError>
+where
+    C: Currency + Serialize + serde::de::DeserializeOwned,
+{
+    let proj = engine.rebuild_read_models_for_period(period).await?;
+    let coa = engine.chart_of_accounts();
+    let tb = trial_balance(coa, &proj);
+    let is = income_statement(coa, &proj);
+    let bs = balance_sheet(coa, &proj, is.net_income);
+    Ok((tb, is, bs))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -86,19 +86,17 @@ fn opposite(side: EntrySide) -> EntrySide {
 ///
 /// For every foreign-currency account (`F`) with activity, translate its balance into the
 /// reporting currency (`R`) at the closing rate, compare to its book (historical) rate,
-/// and post the difference to `fx_account` in the reporting journal. The foreign account's
-/// book rate is then updated to the closing rate. Accounts without a book or closing rate
-/// are skipped.
-///
-/// The sign convention used here is illustrative (the foreign account is marked on its
-/// normal side when the local value rises); a production deployment would follow its
-/// local GAAP, but the *mechanism* — typed conversion, point-in-time rates, balanced
-/// revaluation postings — is exactly what is demonstrated.
+/// and post the difference in the *reporting* journal. The foreign-side leg is booked to
+/// `revaluation_account` (a reporting-currency account), never to the original foreign
+/// account id — posting a foreign account id into the reporting ledger would create a
+/// phantom account that corrupts multi-entity consolidation. The other leg goes to
+/// `fx_account`. The foreign account's book rate is then updated to the closing rate.
 pub async fn revalue<F, R>(
     foreign: &JournalEngine<F>,
     reporting: &mut JournalEngine<R>,
     table: &FxRateTable,
     as_of: DateTime<Utc>,
+    revaluation_account: AccountId,
     fx_account: AccountId,
     period: &str,
 ) -> Result<Vec<RevaluationAdjustment<F, R>>, JournalError>
@@ -145,7 +143,8 @@ where
         };
         let entries = vec![
             LedgerEntry {
-                account: acc.id,
+                // Reporting-currency revaluation account, NOT the foreign account id.
+                account: revaluation_account,
                 side: foreign_side,
                 amount,
             },
@@ -241,6 +240,7 @@ mod tests {
             &mut reporting,
             &table,
             now,
+            rd.cum_translation_adjustment,
             rd.fx_gain_loss,
             "2026-01",
         )
@@ -254,9 +254,10 @@ mod tests {
         assert_eq!(a.book_local.amount(), Decimal::from(100));
         assert_eq!(a.adjustment.amount(), Decimal::from(10));
 
-        // Cash marked up (debit +10), FX gain/loss credited +10 => balanced.
+        // Revaluation posts to a reporting-currency account (NOT the foreign account id):
+        // CTA debited +10, FX gain/loss credited +10 => balanced and consolidation-safe.
         assert_eq!(
-            reporting.balance_of(fd.cash).debits.amount(),
+            reporting.balance_of(rd.cum_translation_adjustment).debits.amount(),
             Decimal::from(10)
         );
         assert_eq!(

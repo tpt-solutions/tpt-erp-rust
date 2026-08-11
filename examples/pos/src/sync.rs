@@ -15,7 +15,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tpt_erp_cache::{CacheError, ReadModelCache};
-use tpt_erp_ledger::{Event, EventStore};
+use tpt_erp_ledger::{Event, EventStore, InMemoryEventStore};
 use tpt_erp_primitives::{Entity, Id, Money, Usd};
 use tpt_erp_tenant::TenantId;
 
@@ -71,7 +71,7 @@ pub struct PosSync {
     tenant: TenantId,
     terminal: Id<PosTerminal>,
     /// Append-only local log of every sale, online or off.
-    local: Mutex<EventStore<Id<PosTerminal>>>,
+    local: Mutex<InMemoryEventStore<Id<PosTerminal>>>,
     /// In-memory mirror of pending (not-yet-synced) sales.
     pending: Mutex<Vec<SaleEvent>>,
     bus: Option<Box<dyn tpt_erp_bus::EventBus>>,
@@ -86,7 +86,7 @@ impl PosSync {
         Self {
             tenant,
             terminal,
-            local: Mutex::new(EventStore::default()),
+            local: Mutex::new(InMemoryEventStore::default()),
             pending: Mutex::new(Vec::new()),
             bus: None,
             cache: None,

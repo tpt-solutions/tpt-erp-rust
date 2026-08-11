@@ -23,12 +23,16 @@ pub enum RepositoryError {
     Backend(String),
 }
 
+/// Maximum number of rows a single page may request, regardless of the `per_page` query
+/// parameter. Guards against a pathological/abusive `per_page` value exhausting memory.
+pub const MAX_PER_PAGE: u32 = 1000;
+
 /// Pagination parsed from query parameters (`page`, `per_page`).
 #[derive(Debug, Clone, Copy, Default, Serialize, serde::Deserialize)]
 pub struct Pagination {
     /// 1-based page index.
     pub page: u32,
-    /// Items per page (clamped by the backend if necessary).
+    /// Items per page (clamped to `[1, MAX_PER_PAGE]` on read).
     pub per_page: u32,
 }
 
@@ -36,13 +40,13 @@ impl Pagination {
     /// SQL `OFFSET`.
     pub fn offset(&self) -> u64 {
         let page = self.page.max(1) as u64;
-        let per = self.per_page.max(1) as u64;
+        let per = (self.per_page.max(1).min(MAX_PER_PAGE)) as u64;
         (page - 1) * per
     }
 
-    /// SQL `LIMIT`.
+    /// SQL `LIMIT`, capped at [`MAX_PER_PAGE`].
     pub fn limit(&self) -> u64 {
-        self.per_page.max(1) as u64
+        (self.per_page.max(1).min(MAX_PER_PAGE)) as u64
     }
 }
 

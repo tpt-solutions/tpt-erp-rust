@@ -16,6 +16,17 @@ use crate::{BusError, EventBus, JobQueue, Message, MessageStream};
 
 const STREAM: &str = "tpt-events";
 
+/// Build a valid, stable NATS durable consumer name from a subject. NATS durable names may
+/// only contain alphanumerics, `-`, `_`, and `.`; wildcard subjects (e.g. `orders.>`) would
+/// otherwise produce an invalid name. Replace any disallowed character with `_` and prefix to
+/// keep it distinct from stream names.
+fn sanitize_subject(subject: &str) -> String {
+    subject
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' })
+        .collect()
+}
+
 /// NATS JetStream-backed [`EventBus`] + [`JobQueue`].
 pub struct NatsBus {
     jetstream: jetstream::Context,
@@ -69,7 +80,7 @@ impl EventBus for NatsBus {
             .get_or_create_consumer(
                 STREAM,
                 PullConfig {
-                    durable_name: Some(format!("sub-{subject}")),
+                    durable_name: Some(format!("sub-{}", sanitize_subject(subject))),
                     filter_subject: subject.to_string(),
                     ack_policy: AckPolicy::Explicit,
                     ..Default::default()
@@ -84,16 +95,20 @@ impl EventBus for NatsBus {
         let s = messages.then(|res| async move {
             match res {
                 Ok(msg) => {
-                    let _ = msg.ack().await;
-                    Message {
-                        subject: msg.message.subject.to_string(),
-                        payload: msg.message.payload.to_vec(),
-                    }
+                    let subject = msg.message.subject.to_string();
+                    let payload = msg.message.payload.to_vec();
+                    // Defer the ack until the *consumer* acknowledges the message (after it
+                    // has been processed). Acknowledge-on-receive here previously broke
+                    // at-least-once delivery: a crash during processing would lose the event.
+                    let ack: crate::AckFn = Box::new(move || {
+                        let msg = msg;
+                        Box::pin(async move {
+                            let _ = msg.ack().await;
+                        })
+                    });
+                    Message::with_ack(subject, payload, ack)
                 }
-                Err(_) => Message {
-                    subject: String::new(),
-                    payload: Vec::new(),
-                },
+                Err(_) => Message::without_ack(String::new(), Vec::new()),
             }
         });
         Ok(Box::pin(s))

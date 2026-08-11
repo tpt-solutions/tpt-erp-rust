@@ -11,6 +11,12 @@ use crate::TenantId;
 /// The GUC (global user config) key used to carry the active tenant for the session.
 pub const TENANT_GUC: &str = "app.tenant_id";
 
+/// Quote a SQL identifier safely: wrap in double quotes and escape any embedded double
+/// quotes by doubling them, so table/column names cannot break out of the identifier context.
+fn quote_ident(name: &str) -> String {
+    format!("\"{}\"", name.replace('"', "\"\""))
+}
+
 /// Build a `SET LOCAL` command that scopes the current transaction to `tenant_id`.
 ///
 /// The value is the tenant's UUID (always an alphanumeric hyphenated string), so there
@@ -24,18 +30,21 @@ pub fn set_tenant_command(tenant_id: &TenantId) -> String {
 pub fn rls_policy(table: &str, tenant_column: &str, name: &str) -> String {
     format!(
         "CREATE POLICY {name} ON {table} FOR ALL USING ({tenant_column} = current_setting('{guc}')::uuid)",
-        guc = TENANT_GUC
+        guc = TENANT_GUC,
+        table = quote_ident(table),
+        name = quote_ident(name),
+        tenant_column = quote_ident(tenant_column),
     )
 }
 
 /// Enable RLS on a table (policies are inert until RLS is turned on).
 pub fn enable_rls(table: &str) -> String {
-    format!("ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
+    format!("ALTER TABLE {} ENABLE ROW LEVEL SECURITY", quote_ident(table))
 }
 
 /// Disable RLS (used in tests / migrations rollbacks).
 pub fn disable_rls(table: &str) -> String {
-    format!("ALTER TABLE {table} DISABLE ROW LEVEL SECURITY")
+    format!("ALTER TABLE {} DISABLE ROW LEVEL SECURITY", quote_ident(table))
 }
 
 #[cfg(test)]
@@ -56,15 +65,15 @@ mod tests {
         let policy = rls_policy("orders", "tenant_id", "orders_tenant");
         assert_eq!(
             policy,
-            "CREATE POLICY orders_tenant ON orders FOR ALL USING (tenant_id = current_setting('app.tenant_id')::uuid)"
+            "CREATE POLICY \"orders_tenant\" ON \"orders\" FOR ALL USING (\"tenant_id\" = current_setting('app.tenant_id')::uuid)"
         );
         assert_eq!(
             enable_rls("orders"),
-            "ALTER TABLE orders ENABLE ROW LEVEL SECURITY"
+            "ALTER TABLE \"orders\" ENABLE ROW LEVEL SECURITY"
         );
         assert_eq!(
             disable_rls("orders"),
-            "ALTER TABLE orders DISABLE ROW LEVEL SECURITY"
+            "ALTER TABLE \"orders\" DISABLE ROW LEVEL SECURITY"
         );
     }
 }

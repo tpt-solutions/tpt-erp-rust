@@ -141,6 +141,9 @@ pub struct DemoAccounts<C: Currency> {
     pub sales_revenue: AccountId,
     pub cogs: AccountId,
     pub fx_gain_loss: AccountId,
+    /// Cumulative translation adjustment (a reporting-currency equity account that
+    /// receives the foreign-side leg of FX revaluation; never a foreign account id).
+    pub cum_translation_adjustment: AccountId,
     _c: PhantomData<C>,
 }
 
@@ -172,6 +175,11 @@ pub fn demo_coa<C: Currency>() -> (ChartOfAccounts<C>, DemoAccounts<C>) {
         AccountType::Expense,
     ));
     let fx = coa.add(Account::new("5900", "FX Gain/Loss", AccountType::Expense));
+    let cta = coa.add(Account::new(
+        "3150",
+        "Cumulative Translation Adjustment",
+        AccountType::Equity,
+    ));
 
     let demo = DemoAccounts {
         cash,
@@ -183,6 +191,7 @@ pub fn demo_coa<C: Currency>() -> (ChartOfAccounts<C>, DemoAccounts<C>) {
         sales_revenue: rev,
         cogs,
         fx_gain_loss: fx,
+        cum_translation_adjustment: cta,
         _c: PhantomData,
     };
     (coa, demo)

@@ -96,10 +96,17 @@ impl<C: Currency> Money<C> {
 
     /// Allocate `self` across `ratios` proportionally using the largest-remainder
     /// method, so the parts sum exactly back to `self` at the currency's minor unit.
-    /// Panics if `ratios` is empty.
-    pub fn allocate(&self, ratios: &[u64]) -> Vec<Money<C>> {
-        assert!(!ratios.is_empty(), "allocate requires at least one ratio");
+    ///
+    /// Returns an error if `ratios` is empty or sums to zero (otherwise the proportional
+    /// share would divide by zero).
+    pub fn allocate(&self, ratios: &[u64]) -> Result<Vec<Money<C>>, MoneyError> {
+        if ratios.is_empty() {
+            return Err(MoneyError::EmptyRatios);
+        }
         let total_ratio = Decimal::from(ratios.iter().copied().sum::<u64>());
+        if total_ratio.is_zero() {
+            return Err(MoneyError::ZeroTotalRatio);
+        }
         let unit = Decimal::from(10).powi(-(C::MINOR_UNITS as i64));
 
         let mut parts: Vec<Decimal> = vec![Decimal::ZERO; ratios.len()];
@@ -124,7 +131,48 @@ impl<C: Currency> Money<C> {
             }
         }
 
-        parts.into_iter().map(Money::new).collect()
+        Ok(parts.into_iter().map(Money::new).collect())
+    }
+}
+
+/// Errors raised by fallible [`Money`] operations.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum MoneyError {
+    /// `allocate` was called with an empty ratio list.
+    #[error("allocate requires at least one ratio")]
+    EmptyRatios,
+    /// `allocate` was called with ratios that sum to zero.
+    #[error("allocate requires a non-zero total ratio")]
+    ZeroTotalRatio,
+    /// An arithmetic operation overflowed the underlying decimal (rather than panicking).
+    #[error("money arithmetic overflowed")]
+    Overflow,
+}
+
+impl<C: Currency> Money<C> {
+    /// Add two same-currency amounts, returning [`MoneyError::Overflow`] on decimal overflow
+    /// instead of panicking like the `+` operator.
+    pub fn checked_add(self, rhs: Self) -> Result<Self, MoneyError> {
+        self.amount
+            .checked_add(rhs.amount)
+            .map(Money::new)
+            .ok_or(MoneyError::Overflow)
+    }
+
+    /// Subtract two same-currency amounts, returning [`MoneyError::Overflow`] on underflow.
+    pub fn checked_sub(self, rhs: Self) -> Result<Self, MoneyError> {
+        self.amount
+            .checked_sub(rhs.amount)
+            .map(Money::new)
+            .ok_or(MoneyError::Overflow)
+    }
+
+    /// Scale by a dimensionless decimal, returning [`MoneyError::Overflow`] on overflow.
+    pub fn checked_mul_decimal(self, rhs: Decimal) -> Result<Self, MoneyError> {
+        self.amount
+            .checked_mul(rhs)
+            .map(Money::new)
+            .ok_or(MoneyError::Overflow)
     }
 }
 
@@ -269,12 +317,19 @@ mod tests {
     fn allocate_largest_remainder() {
         // $100 split 1:1:1 -> 33.34, 33.33, 33.33
         let total = Money::<Usd>::from_major(100);
-        let parts = total.allocate(&[1, 1, 1]);
+        let parts = total.allocate(&[1, 1, 1]).expect("valid ratios");
         assert_eq!(parts[0].amount(), dec!(33.34));
         assert_eq!(parts[1].amount(), dec!(33.33));
         assert_eq!(parts[2].amount(), dec!(33.33));
         let sum: Money<Usd> = parts.into_iter().fold(Money::zero(), |a, b| a + b);
         assert_eq!(sum, total);
+    }
+
+    #[test]
+    fn allocate_rejects_empty_and_zero_ratio() {
+        let total = Money::<Usd>::from_major(100);
+        assert_eq!(total.allocate(&[]), Err(MoneyError::EmptyRatios));
+        assert_eq!(total.allocate(&[0, 0]), Err(MoneyError::ZeroTotalRatio));
     }
 
     #[test]

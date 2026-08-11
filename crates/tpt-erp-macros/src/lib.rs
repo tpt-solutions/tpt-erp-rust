@@ -65,18 +65,35 @@ pub fn derive_state_machine(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let enum_name = &input.ident;
-    let attr = input
+    let attr = match input
         .attrs
         .iter()
         .find(|a| a.path().is_ident("state_machine"))
-        .map(|a| a.parse_args::<StateMachineAttr>())
-        .transpose()
-        .expect("failed to parse `state_machine` attribute")
-        .expect("missing `#[state_machine(transitions(..))]` attribute");
+    {
+        Some(a) => match a.parse_args::<StateMachineAttr>() {
+            Ok(a) => a,
+            Err(e) => return e.to_compile_error().into(),
+        },
+        None => {
+            return syn::Error::new_spanned(
+                &input,
+                "missing `#[state_machine(transitions(..))]` attribute",
+            )
+            .to_compile_error()
+            .into()
+        }
+    };
 
     let variants: Vec<Ident> = match &input.data {
         syn::Data::Enum(e) => e.variants.iter().map(|v| v.ident.clone()).collect(),
-        _ => panic!("StateMachine can only be derived for enums"),
+        _ => {
+            return syn::Error::new_spanned(
+                &input,
+                "StateMachine can only be derived for enums",
+            )
+            .to_compile_error()
+            .into()
+        }
     };
 
     let error_name = Ident::new(&format!("{enum_name}TransitionError"), enum_name.span());

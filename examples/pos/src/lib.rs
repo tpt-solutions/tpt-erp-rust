@@ -151,22 +151,25 @@ impl PosApp {
         }
         let subtotal = txn.subtotal();
         let tax = txn.tax_total();
-        let gross = subtotal + tax;
 
-        // Optional pricing discount on the gross, in cents.
-        let gross_cents = (gross.amount() * rust_decimal::Decimal::from(100))
+        // Optional pricing discount on the *pre-tax subtotal* (not the tax-inclusive gross),
+        // so the effective tax rate is unchanged. `pricing.discount` returns the discounted
+        // subtotal in cents.
+        let subtotal_cents = (subtotal.amount() * rust_decimal::Decimal::from(100))
             .to_i64()
             .unwrap_or(0);
-        let (discounted_cents, pricing_applied) = {
+        let (discounted_subtotal_cents, pricing_applied) = {
             let mut pricing = self.pricing.lock().await;
-            match pricing.discount("store-1", gross_cents) {
-                Some(c) if c < gross_cents => (c, true),
-                _ => (gross_cents, false),
+            match pricing.discount("store-1", subtotal_cents) {
+                Some(c) if c < subtotal_cents => (c, true),
+                _ => (subtotal_cents, false),
             }
         };
-        let total = Money::<Usd>::new(rust_decimal::Decimal::from(discounted_cents)
-            / rust_decimal::Decimal::from(100));
-        let discount = gross - total;
+        let discounted_subtotal = Money::<Usd>::new(
+            rust_decimal::Decimal::from(discounted_subtotal_cents) / rust_decimal::Decimal::from(100),
+        );
+        let discount = subtotal - discounted_subtotal;
+        let total = discounted_subtotal + tax;
 
         // Split the (possibly discounted) total across the offered tenders exactly.
         let offered: Vec<Tender> = tenders
@@ -181,7 +184,7 @@ impl PosApp {
                 PosError::Underfunded { covered, total }
             }
             crate::tender::TenderError::EmptyTenders => {
-                PosError::Underfunded { covered: Money::zero(), total: gross }
+                PosError::Underfunded { covered: Money::zero(), total: subtotal }
             }
         })?;
 

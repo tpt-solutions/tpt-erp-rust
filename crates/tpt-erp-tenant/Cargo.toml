@@ -22,10 +22,15 @@ uuid = { workspace = true }
 # Optional web integration: Axum extractor + resolver middleware.
 axum = { workspace = true, optional = true }
 tower = { workspace = true }
+tokio = { workspace = true }
+sqlx = { workspace = true, optional = true }
 
 [features]
 # Enables `TenantContext` Axum extractor + resolver layer.
 axum = ["dep:axum"]
+# Enables a real Postgres connection that executes `SET LOCAL app.tenant_id`
+# per request/transaction so Row-Level Security actually scopes the query.
+sqlx = ["dep:sqlx", "axum"]
 
 [dev-dependencies]
 axum = { workspace = true }

@@ -64,9 +64,11 @@ pub fn split_total(total: Money<Usd>, tenders: &[Tender]) -> Result<Vec<Money<Us
         return Err(TenderError::Underfunded { covered: offered, total });
     }
     // Split the (fully covered) total proportionally to each tender's offered amount; the
-    // parts always sum *exactly* back to `total` at the minor unit.
+    // parts always sum *exactly* back to `total` at the minor unit. `allocate` returns an
+    // error only for an empty/zero-weight list, which cannot happen here (weights are
+    // derived from non-empty `tenders` and cannot all be zero since `offered >= total > 0`).
     let weights: Vec<u64> = tenders.iter().map(|t| amount_to_u64(t.amount)).collect();
-    let applied = total.allocate(&weights);
+    let applied = total.allocate(&weights).map_err(|_| TenderError::EmptyTenders)?;
     Ok(applied)
 }
 

@@ -5,7 +5,7 @@
 //! all events — there is no risk of drift.
 
 use crate::AccountId;
-use crate::double_entry::{EntrySide, LedgerEvent};
+use crate::double_entry::{DoubleEntry, EntrySide, LedgerEvent};
 use std::collections::HashMap;
 use thiserror::Error;
 use tpt_erp_primitives::{Currency, Money};
@@ -15,6 +15,9 @@ use tpt_erp_primitives::{Currency, Money};
 pub enum ProjectionError {
     #[error("failed to deserialize event payload: {0}")]
     Deserialize(#[from] serde_json::Error),
+    /// A posted transaction was unbalanced; it is rejected before it can mutate the read model.
+    #[error("transaction is unbalanced: debits {debits} != credits {credits}")]
+    Unbalanced { debits: String, credits: String },
 }
 
 /// A read-model builder that folds events into state.
@@ -73,6 +76,15 @@ impl<C: Currency> Projector for BalanceProjection<C> {
     async fn apply(&mut self, event: &LedgerEvent<C>) -> Result<(), ProjectionError> {
         match event {
             LedgerEvent::TransactionPosted(tx) => {
+                // Enforce balance at the point of application, not just via an opt-in
+                // `validate()` the caller might forget: an unbalanced transaction must
+                // never be allowed to mutate the read model.
+                if !tx.is_balanced() {
+                    return Err(ProjectionError::Unbalanced {
+                        debits: tx.debits().to_string(),
+                        credits: tx.credits().to_string(),
+                    });
+                }
                 for entry in &tx.entries {
                     let bal = self
                         .balances

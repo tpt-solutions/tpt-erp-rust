@@ -60,15 +60,23 @@ pub enum TenantResolutionError {
 }
 
 /// Extract the tenant slug from a `Host` header value. The leftmost DNS label is the
-/// tenant; a bare host (`localhost`) yields none.
+/// tenant; a bare host (`localhost`) or an apex domain (`example.com`) yields none so it is
+/// never silently treated as a tenant slug.
 ///
 /// - `acme.example.com` -> `acme`
-/// - `example.com` -> `example`
+/// - `example.com` -> `None` (apex domain, not a subdomain)
 /// - `localhost` -> `None`
 pub fn from_subdomain(host: &str) -> Option<TenantSlug> {
     let host = host.split(':').next().unwrap_or(host);
-    let first = host.split('.').next()?;
-    if first.is_empty() || first == host {
+    // Reject apex-domain requests (e.g. `example.com`): a real tenant subdomain must be a
+    // sub-label of a multi-label base (e.g. `acme.example.com`), so the host needs at least
+    // three labels. Without this, `example.com` was silently treated as the tenant `example`.
+    let labels: Vec<&str> = host.split('.').collect();
+    if labels.len() < 3 {
+        return None;
+    }
+    let first = labels[0];
+    if first.is_empty() {
         None
     } else {
         Some(TenantSlug(first.to_ascii_lowercase()))
@@ -116,11 +124,17 @@ mod tests {
             Some(TenantSlug("acme".into()))
         );
         assert_eq!(
-            from_subdomain("Example.com"),
-            Some(TenantSlug("example".into()))
+            from_subdomain("ACME.example.com"),
+            Some(TenantSlug("acme".into()))
         );
         assert_eq!(from_subdomain("localhost"), None);
         assert_eq!(from_subdomain(""), None);
+    }
+
+    #[test]
+    fn apex_domain_is_rejected() {
+        // A two-label apex (`example.com`) is not a tenant subdomain.
+        assert_eq!(from_subdomain("example.com"), None);
     }
 
     #[test]

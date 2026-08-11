@@ -10,6 +10,10 @@
 //! - `tpt:rm:{tid}:{model}:{k}`  — JSON read-model value, with TTL.
 //!
 //! `tpt:rm:{tid}:{model}:*`      — scanned for `invalidate_model`.
+//!
+//! A [`redis::aio::MultiplexedConnection`] is safe to use concurrently from many tasks: it
+//! multiplexes commands over a single connection internally, so it is stored directly
+//! (without a process-wide `Mutex`, which would serialize every cache/session operation).
 
 use std::time::Duration;
 
@@ -18,7 +22,6 @@ use chrono::Utc;
 use redis::AsyncCommands;
 use redis::aio::MultiplexedConnection;
 use serde_json::Value;
-use tokio::sync::Mutex;
 use tpt_erp_tenant::TenantId;
 
 use crate::{CacheError, ReadModelCache, Session, SessionStore};
@@ -35,7 +38,7 @@ fn model_key(tenant: &TenantId, model: &str, key: &str) -> String {
 
 /// Redis/Dragonfly-backed [`SessionStore`].
 pub struct RedisSessionStore {
-    conn: Mutex<MultiplexedConnection>,
+    conn: MultiplexedConnection,
 }
 
 impl RedisSessionStore {
@@ -46,9 +49,7 @@ impl RedisSessionStore {
             .get_multiplexed_tokio_connection()
             .await
             .map_err(|e| CacheError::Backend(e.to_string()))?;
-        Ok(Self {
-            conn: Mutex::new(conn),
-        })
+        Ok(Self { conn })
     }
 }
 
@@ -73,7 +74,7 @@ impl SessionStore for RedisSessionStore {
         };
         let json = serde_json::to_string(&session)?;
 
-        let mut conn = self.conn.lock().await;
+        let conn = &mut self.conn;
         if let Some(ttl) = ttl {
             let secs = u64::try_from(ttl.as_secs()).unwrap_or(u64::MAX);
             let _: () = conn
@@ -94,7 +95,7 @@ impl SessionStore for RedisSessionStore {
     }
 
     async fn get(&self, id: &str) -> Result<Option<Session>, CacheError> {
-        let mut conn = self.conn.lock().await;
+        let conn = &mut self.conn;
         let raw: Option<String> = conn
             .get(sess_key(id))
             .await
@@ -117,7 +118,7 @@ impl SessionStore for RedisSessionStore {
     }
 
     async fn touch(&self, id: &str) -> Result<(), CacheError> {
-        let mut conn = self.conn.lock().await;
+        let conn = &mut self.conn;
         let raw: Option<String> = conn
             .get(sess_key(id))
             .await
@@ -158,7 +159,7 @@ impl SessionStore for RedisSessionStore {
     }
 
     async fn delete(&self, id: &str) -> Result<(), CacheError> {
-        let mut conn = self.conn.lock().await;
+        let conn = &mut self.conn;
         // Remove from its tenant set before deleting the session key.
         let raw: Option<String> = conn
             .get(sess_key(id))
@@ -175,7 +176,7 @@ impl SessionStore for RedisSessionStore {
     }
 
     async fn delete_for_tenant(&self, tenant: &TenantId) -> Result<(), CacheError> {
-        let mut conn = self.conn.lock().await;
+        let conn = &mut self.conn;
         let ids: Vec<String> = conn
             .smembers(tenant_set_key(tenant))
             .await
@@ -190,7 +191,7 @@ impl SessionStore for RedisSessionStore {
 
 /// Redis/Dragonfly-backed [`ReadModelCache`].
 pub struct RedisReadModelCache {
-    conn: Mutex<MultiplexedConnection>,
+    conn: MultiplexedConnection,
 }
 
 impl RedisReadModelCache {
@@ -201,9 +202,7 @@ impl RedisReadModelCache {
             .get_multiplexed_tokio_connection()
             .await
             .map_err(|e| CacheError::Backend(e.to_string()))?;
-        Ok(Self {
-            conn: Mutex::new(conn),
-        })
+        Ok(Self { conn })
     }
 }
 
@@ -215,7 +214,7 @@ impl ReadModelCache for RedisReadModelCache {
         model: &str,
         key: &str,
     ) -> Result<Option<Value>, CacheError> {
-        let mut conn = self.conn.lock().await;
+        let conn = &mut self.conn;
         let raw: Option<String> = conn
             .get(model_key(tenant, model, key))
             .await
@@ -235,7 +234,7 @@ impl ReadModelCache for RedisReadModelCache {
         ttl: Option<Duration>,
     ) -> Result<(), CacheError> {
         let json = serde_json::to_string(&value)?;
-        let mut conn = self.conn.lock().await;
+        let conn = &mut self.conn;
         if let Some(ttl) = ttl {
             let secs = u64::try_from(ttl.as_secs()).unwrap_or(u64::MAX);
             let _: () = conn
@@ -257,14 +256,14 @@ impl ReadModelCache for RedisReadModelCache {
         model: &str,
         key: &str,
     ) -> Result<(), CacheError> {
-        let mut conn = self.conn.lock().await;
+        let conn = &mut self.conn;
         let _: Result<(), redis::RedisError> = conn.del(model_key(tenant, model, key)).await;
         Ok(())
     }
 
     async fn invalidate_model(&self, tenant: &TenantId, model: &str) -> Result<(), CacheError> {
         let pattern = format!("tpt:rm:{}:{}:*", tenant.as_str(), model);
-        let mut conn = self.conn.lock().await;
+        let conn = &mut self.conn;
         let mut cursor: u64 = 0;
         loop {
             let (new_cursor, keys): (u64, Vec<String>) = redis::cmd("SCAN")

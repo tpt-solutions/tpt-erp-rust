@@ -35,6 +35,12 @@ pub mod rls;
 #[cfg(feature = "axum")]
 pub mod web;
 
+#[cfg(feature = "sqlx")]
+pub mod db;
+
+#[cfg(feature = "sqlx")]
+pub use db::{TenantConnection, TenantDbError, tenant_db_middleware};
+
 pub use identification::{
     TenantContext, TenantResolutionError, TenantSlug, from_header, from_jwt_claims, from_subdomain,
 };

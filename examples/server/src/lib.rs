@@ -23,7 +23,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tpt_erp_ledger::{
-    BalanceProjection, Event, EventStore,
+    BalanceProjection, Event, EventStore, InMemoryEventStore,
     double_entry::{
         AccountId, DoubleEntry, DoubleEntryError, EntrySide, LedgerEntry, LedgerEvent, Transaction,
     },
@@ -51,7 +51,7 @@ type TenantIdKey = tpt_erp_tenant::TenantId;
 
 struct TenantLedger {
     journal: JournalId,
-    store: EventStore<JournalId>,
+    store: InMemoryEventStore<JournalId>,
 }
 
 impl AppState {
@@ -64,7 +64,7 @@ impl AppState {
         let mut ledgers = self.ledgers.lock().expect("ledger lock poisoned");
         let entry = ledgers.entry(*tenant).or_insert_with(|| TenantLedger {
             journal: JournalId::new(),
-            store: EventStore::default(),
+            store: InMemoryEventStore::default(),
         });
         let event = Event::new(
             entry.journal,

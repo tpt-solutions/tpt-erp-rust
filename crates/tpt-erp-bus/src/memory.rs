@@ -42,21 +42,24 @@ impl InMemoryBus {
 #[async_trait::async_trait]
 impl EventBus for InMemoryBus {
     async fn publish(&self, subject: &str, payload: &[u8]) -> Result<(), BusError> {
-        let msg = Message {
-            subject: subject.to_string(),
-            payload: payload.to_vec(),
+        let msg = Message::without_ack(subject, payload.to_vec());
+        // Snapshot the matching senders under the lock, then drop the lock *before* awaiting
+        // so the future stays `Send` and a slow subscriber applies backpressure.
+        let targets: Vec<mpsc::Sender<Message>> = {
+            let inner = self.inner.lock().unwrap();
+            inner
+                .subs
+                .iter()
+                .filter(|(sub, _)| subject_matches(sub, subject))
+                .flat_map(|(_, senders)| senders.iter().cloned())
+                .collect()
         };
-        let inner = self.inner.lock().unwrap();
-        // Snapshot senders so we don't hold the lock across awaits.
-        let targets: Vec<mpsc::Sender<Message>> = inner
-            .subs
-            .iter()
-            .filter(|(sub, _)| subject_matches(sub, subject))
-            .flat_map(|(_, senders)| senders.iter().cloned())
-            .collect();
-        drop(inner);
         for tx in targets {
-            let _ = tx.try_send(msg.clone());
+            // Apply backpressure instead of silently dropping: if a subscriber's buffer is
+            // full we wait (and propagate a closed-channel error) rather than lose the event.
+            tx.send(msg.clone())
+                .await
+                .map_err(|_| BusError::Backend("subscriber channel closed".to_string()))?;
         }
         Ok(())
     }
