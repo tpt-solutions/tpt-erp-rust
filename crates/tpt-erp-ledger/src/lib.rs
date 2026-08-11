@@ -11,18 +11,22 @@
 //! A production deployment persists the same [`StoredEvent`] shape to Postgres and runs
 //! the same projectors; only the storage backend changes.
 
+pub mod anomaly;
 pub mod double_entry;
 pub mod event;
 pub mod projection;
+pub mod replay;
 pub mod store;
 
 #[cfg(feature = "postgres")]
 pub mod postgres_store;
 
+pub use anomaly::{Anomaly, AnomalyProjector};
 pub use double_entry::{
     Account, AccountId, DoubleEntry, DoubleEntryError, EntrySide, LedgerEntry, LedgerEvent,
     LedgerTransaction, Transaction, TransactionId,
 };
 pub use event::{Event, EventStoreError, StoredEvent};
 pub use projection::{BalanceProjection, ProjectionError, Projector, replay};
+pub use replay::{current_index, replay_point_in_time};
 pub use store::{EventStore, InMemoryEventStore};

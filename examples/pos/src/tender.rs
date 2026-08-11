@@ -121,6 +121,12 @@ fn amount_to_u64<C: Currency>(m: Money<C>) -> u64 {
     minor.max(0) as u64
 }
 
+/// `pub(crate)` accessor for the minor-unit weight of a `Money<Usd>` (used by the
+/// returns module to apportion a refund across the original tenders).
+pub(crate) fn weight(m: Money<Usd>) -> u64 {
+    amount_to_u64(m)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

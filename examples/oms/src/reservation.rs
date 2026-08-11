@@ -48,13 +48,19 @@ pub enum ReserveEvent {
     Capture { reservation: Id<Hold> },
     /// A hold released (cancelled, fulfilled, or expired).
     Release { reservation: Id<Hold> },
+    /// A backorder placed for `qty` units that could not be reserved (stock short).
+    BackorderPlaced { reservation: Id<Hold>, qty: u32 },
+    /// A backorder fulfilled: `qty` units were allocated into a hold once stock arrived.
+    BackorderFilled { reservation: Id<Hold>, qty: u32 },
+    /// Stock returned from a customer return, restoring `qty` units to the sellable pool.
+    Return(i64),
 }
 
 impl ReserveEvent {
     /// The signed delta this event applies to the sellable on-hand pool.
     pub fn on_hand_delta(&self) -> i64 {
         match self {
-            ReserveEvent::Received(q) => *q,
+            ReserveEvent::Received(q) | ReserveEvent::Return(q) => *q,
             _ => 0,
         }
     }
@@ -93,6 +99,8 @@ pub struct SkuState {
     holds: HashMap<Id<Hold>, u32>,
     /// Expiry timestamps of active holds (fallback when no cache attached).
     expires_at: HashMap<Id<Hold>, DateTime<Utc>>,
+    /// Unfulfilled backorders keyed by backorder id (awaiting stock).
+    backorders: HashMap<Id<Hold>, u32>,
 }
 
 impl SkuState {
@@ -163,6 +171,9 @@ impl ReservationEngine {
     }
 
     /// Record `qty` units received into the sellable pool for `sku`.
+    ///
+    /// Stock arriving makes previously-placed backorders fulfillable; call
+    /// [`ReservationEngine::fulfill_backorders`] (or the saga) to promote them into holds.
     pub async fn receive(&self, sku: Id<Sku>, qty: i64) -> Result<(), ReservationError> {
         let idx = Self::shard_index(&sku);
         {
@@ -170,6 +181,227 @@ impl ReservationEngine {
             shard
                 .store
                 .append(Event::new(sku, "received", &ReserveEvent::Received(qty))?);
+            shard.states.entry(sku).or_default().on_hand += qty;
+        }
+        if let Some(cache) = &self.cache {
+            cache
+                .put(
+                    &self.tenant,
+                    "on_hand",
+                    &sku.as_str(),
+                    serde_json::json!({ "on_hand": self.on_hand(sku) }),
+                    None,
+                )
+                .await
+                .ok();
+        }
+        if let Some(bus) = &self.bus {
+            let _ = bus
+                .publish(
+                    "oms.stock_received",
+                    serde_json::json!({ "sku": sku.as_str(), "qty": qty })
+                        .to_string()
+                        .as_bytes(),
+                )
+                .await;
+        }
+        Ok(())
+    }
+
+    /// Reserve what is available and place the shortfall on backorder instead of failing.
+    ///
+    /// Returns the reserved hold (with the qty actually reserved) and/or a backorder id
+    /// (with the qty that could not be covered). A fully-satisfied request behaves exactly
+    /// like [`ReservationEngine::reserve`]; a fully-short request reserves nothing and
+    /// returns only a backorder.
+    pub async fn reserve_or_backorder(
+        &self,
+        sku: Id<Sku>,
+        qty: u32,
+        ttl: Duration,
+    ) -> Result<(Option<(Id<Hold>, u32)>, Option<(Id<Hold>, u32)>), ReservationError> {
+        self.sweep_expired().await?;
+
+        let idx = Self::shard_index(&sku);
+        let now = Utc::now();
+        let expires = now
+            + chrono::Duration::from_std(ttl).unwrap_or_else(|_| chrono::Duration::days(365 * 100));
+
+        let mut reserved: Option<(Id<Hold>, u32)> = None;
+        let mut backorder: Option<(Id<Hold>, u32)> = None;
+
+        // Compute the reservable quantity without holding the shard across appends.
+        let reserved_qty = {
+            let mut shard = self.shards[idx].lock().unwrap();
+            let available = shard.states.entry(sku).or_default().available();
+            (available as u32).min(qty)
+        };
+
+        if reserved_qty > 0 {
+            let hold = Id::new();
+            {
+                let mut shard = self.shards[idx].lock().unwrap();
+                shard.store.append(Event::new(
+                    sku,
+                    "hold",
+                    &ReserveEvent::Hold {
+                        reservation: hold,
+                        qty: reserved_qty,
+                    },
+                )?);
+                let st = shard.states.get_mut(&sku).expect("entry exists");
+                st.holds.insert(hold, reserved_qty);
+                st.expires_at.insert(hold, expires);
+            }
+            reserved = Some((hold, reserved_qty));
+        }
+
+        if reserved_qty < qty {
+            let bo_qty = qty - reserved_qty;
+            let bo = Id::new();
+            {
+                let mut shard = self.shards[idx].lock().unwrap();
+                shard.store.append(Event::new(
+                    sku,
+                    "backorder_placed",
+                    &ReserveEvent::BackorderPlaced {
+                        reservation: bo,
+                        qty: bo_qty,
+                    },
+                )?);
+                let st = shard.states.get_mut(&sku).expect("entry exists");
+                st.backorders.insert(bo, bo_qty);
+            }
+            backorder = Some((bo, bo_qty));
+        }
+
+        if let Some((hold, q)) = reserved {
+            self.expiry_index.lock().unwrap().insert(hold, expires);
+            if let Some(cache) = &self.cache {
+                cache
+                    .put(
+                        &self.tenant,
+                        "holds",
+                        &hold.as_str(),
+                        serde_json::json!({ "sku": sku.as_str(), "qty": q }),
+                        Some(ttl),
+                    )
+                    .await
+                    .ok();
+            }
+            if let Some(bus) = &self.bus {
+                let _ = bus
+                    .publish(
+                        "oms.stock_reserved",
+                        serde_json::json!({ "sku": sku.as_str(), "qty": q, "hold": hold.as_str() })
+                            .to_string()
+                            .as_bytes(),
+                    )
+                    .await;
+            }
+        }
+        if let Some((bo, q)) = backorder {
+            if let Some(bus) = &self.bus {
+                let _ = bus
+                    .publish(
+                        "oms.backorder_placed",
+                        serde_json::json!({ "sku": sku.as_str(), "qty": q, "backorder": bo.as_str() })
+                            .to_string()
+                            .as_bytes(),
+                    )
+                    .await;
+            }
+        }
+
+        Ok((reserved, backorder))
+    }
+
+    /// Fulfill every backorder for `sku` that the current available pool can cover,
+    /// promoting each into a real hold (emitting `BackorderFilled`). Returns the newly
+    /// created holds and their quantities.
+    async fn fulfill_backorders_for(
+        &self,
+        sku: Id<Sku>,
+    ) -> Result<Vec<(Id<Hold>, u32)>, ReservationError> {
+        let idx = Self::shard_index(&sku);
+        let mut filled: Vec<(Id<Hold>, u32)> = Vec::new();
+        loop {
+            // Pick one satisfiable backorder, then release the lock before recursing.
+            let picked = {
+                let shard = self.shards[idx].lock().unwrap();
+                let st = match shard.states.get(&sku) {
+                    Some(s) => s,
+                    None => break,
+                };
+                st.backorders
+                    .iter()
+                    .find(|(_, q)| st.available() >= **q as i64)
+                    .map(|(id, q)| (*id, *q))
+            };
+            let (bo, qty) = match picked {
+                Some(p) => p,
+                None => break,
+            };
+            let hold = Id::new();
+            let far_future = Utc::now() + chrono::Duration::days(365 * 100);
+            {
+                let mut shard = self.shards[idx].lock().unwrap();
+                let st = shard.states.get_mut(&sku).expect("checked above");
+                st.backorders.remove(&bo);
+                st.holds.insert(hold, qty);
+                st.expires_at.insert(hold, far_future);
+                shard.store.append(Event::new(
+                    sku,
+                    "backorder_filled",
+                    &ReserveEvent::BackorderFilled {
+                        reservation: hold,
+                        qty,
+                    },
+                )?);
+            }
+            if let Some(bus) = &self.bus {
+                let _ = bus
+                    .publish(
+                        "oms.backorder_filled",
+                        serde_json::json!({ "sku": sku.as_str(), "qty": qty, "hold": hold.as_str() })
+                            .to_string()
+                            .as_bytes(),
+                    )
+                    .await;
+            }
+            filled.push((hold, qty));
+        }
+        Ok(filled)
+    }
+
+    /// Fulfill every satisfiable backorder across all SKUs (call after stock arrives).
+    /// Returns the new holds with their SKU and quantity so the caller can confirm and
+    /// bill them. This is the deterministic, event-sourced backorder-fulfillment path.
+    pub async fn fulfill_backorders(
+        &self,
+    ) -> Result<Vec<(Id<Sku>, Id<Hold>, u32)>, ReservationError> {
+        let mut result = Vec::new();
+        for shard in &self.shards {
+            let skus: Vec<Id<Sku>> = shard.lock().unwrap().states.keys().copied().collect();
+            for sku in skus {
+                for (hold, qty) in self.fulfill_backorders_for(sku).await? {
+                    result.push((sku, hold, qty));
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    /// Restore `qty` units to the sellable pool from a customer return, reversing the
+    /// committed stock allocation. Stock arriving this way also makes backorders
+    /// fulfillable (promote them via [`ReservationEngine::fulfill_backorders`]).
+    pub async fn return_stock(&self, sku: Id<Sku>, qty: i64) -> Result<(), ReservationError> {
+        let idx = Self::shard_index(&sku);
+        {
+            let mut shard = self.shards[idx].lock().unwrap();
+            shard
+                .store
+                .append(Event::new(sku, "return", &ReserveEvent::Return(qty))?);
             shard.states.entry(sku).or_default().on_hand += qty;
         }
         if let Some(cache) = &self.cache {
@@ -459,6 +691,18 @@ impl Projector for ReservationProjection {
             ReserveEvent::Release { reservation } => {
                 st.holds.remove(reservation);
             }
+            ReserveEvent::BackorderPlaced { reservation, qty } => {
+                st.backorders.insert(*reservation, *qty);
+            }
+            ReserveEvent::BackorderFilled {
+                reservation,
+                qty: _,
+            } => {
+                if let Some(q) = st.backorders.remove(reservation) {
+                    st.holds.insert(*reservation, q);
+                }
+            }
+            ReserveEvent::Return(q) => st.on_hand += *q,
         }
         Ok(())
     }
@@ -585,5 +829,49 @@ mod tests {
         assert_eq!(st.committed, 5);
         assert_eq!(st.available(), 15);
         assert_eq!(eng.available(s), 15);
+    }
+
+    #[tokio::test]
+    async fn short_reserve_goes_on_backorder_then_fulfills() {
+        let eng = ReservationEngine::new(demo_tenant());
+        let s = sku();
+        eng.receive(s, 2).await.unwrap();
+
+        // Want 5 but only 2 available: 2 reserved, 3 backordered.
+        let (reserved, backorder) = eng
+            .reserve_or_backorder(s, 5, Duration::from_secs(60))
+            .await
+            .unwrap();
+        assert_eq!(reserved.as_ref().unwrap().1, 2);
+        assert_eq!(backorder.as_ref().unwrap().1, 3);
+        assert_eq!(eng.available(s), 0);
+
+        // Stock arrives; the backorder is promoted into a real hold.
+        eng.receive(s, 3).await.unwrap();
+        let filled = eng.fulfill_backorders().await.unwrap();
+        assert_eq!(filled.len(), 1);
+        assert_eq!(filled[0].0, s);
+        assert_eq!(filled[0].2, 3);
+        // Now all 5 units are held (reserved) and none sellable.
+        assert_eq!(eng.available(s), 0);
+
+        // Confirm the backorder hold to commit it.
+        eng.confirm(filled[0].0, filled[0].1).await.unwrap();
+        assert_eq!(eng.available(s), 0);
+        assert_eq!(eng.on_hand(s), 5);
+    }
+
+    #[tokio::test]
+    async fn returned_stock_restored_to_sellable_pool() {
+        let eng = ReservationEngine::new(demo_tenant());
+        let s = sku();
+        eng.receive(s, 10).await.unwrap();
+        let h = eng.reserve(s, 4, Duration::from_secs(60)).await.unwrap();
+        eng.confirm(s, h).await.unwrap();
+        assert_eq!(eng.available(s), 6);
+
+        // A return of 3 units puts them back into the sellable pool.
+        eng.return_stock(s, 3).await.unwrap();
+        assert_eq!(eng.available(s), 9);
     }
 }

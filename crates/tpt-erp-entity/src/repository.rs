@@ -40,13 +40,13 @@ impl Pagination {
     /// SQL `OFFSET`.
     pub fn offset(&self) -> u64 {
         let page = self.page.max(1) as u64;
-        let per = (self.per_page.max(1).min(MAX_PER_PAGE)) as u64;
+        let per = self.per_page.clamp(1, MAX_PER_PAGE) as u64;
         (page - 1) * per
     }
 
     /// SQL `LIMIT`, capped at [`MAX_PER_PAGE`].
     pub fn limit(&self) -> u64 {
-        (self.per_page.max(1).min(MAX_PER_PAGE)) as u64
+        self.per_page.clamp(1, MAX_PER_PAGE) as u64
     }
 }
 

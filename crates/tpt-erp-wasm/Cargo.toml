@@ -24,6 +24,10 @@ wasmtime = { version = "30", default-features = false, features = [
 serde = { workspace = true }
 serde_json = { workspace = true }
 tpt-erp-ledger = { workspace = true }
+tpt-erp-primitives = { workspace = true }
+tpt-erp-tenant = { workspace = true }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+rand = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }

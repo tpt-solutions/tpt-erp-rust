@@ -21,6 +21,9 @@ use wasmtime::{
     component::{Component, Linker},
 };
 
+use tpt_erp_tenant::TenantId;
+
+use crate::billing::UsageMeter;
 use crate::contract::Plugin as PluginBindings;
 use crate::host::{HostContext, TptHost};
 
@@ -82,6 +85,8 @@ pub struct PluginRuntime {
     engine: Engine,
     linker: Linker<TptHost>,
     config: RuntimeConfig,
+    /// Shared per-tenant usage meter; consulted on every plugin call for billing.
+    usage: Arc<UsageMeter>,
     /// Background ticker that advances wasmtime's epoch so the wall-clock
     /// cap (set as a 1-epoch deadline per `run`) actually takes effect.
     _epoch_ticker: Option<EpochTicker>,
@@ -150,17 +155,26 @@ impl PluginRuntime {
             engine,
             linker,
             config,
+            usage: Arc::new(UsageMeter::new()),
             _epoch_ticker: epoch_ticker,
         })
     }
 
+    /// Access the shared per-tenant usage meter (for billing rollups).
+    pub fn usage_meter(&self) -> Arc<UsageMeter> {
+        Arc::clone(&self.usage)
+    }
+
     /// Load and instantiate a plugin from compiled component bytes.
     ///
-    /// `name` is an operator-facing label used in errors/logs. `ctx` is
-    /// the host read-model the plugin will query through `erp`.
+    /// `name` is an operator-facing label used in errors/logs. `tenant` is the tenant the
+    /// plugin runs on behalf of; fuel consumed by its `run` calls is metered against that
+    /// tenant via the shared [`UsageMeter`]. `ctx` is the host read-model the plugin will
+    /// query through `erp`.
     pub fn load(
         &self,
         name: &str,
+        tenant: TenantId,
         wasm: &[u8],
         ctx: Box<dyn HostContext>,
     ) -> Result<PluginHandle, RuntimeError> {
@@ -177,22 +191,25 @@ impl PluginRuntime {
             .map_err(|e| RuntimeError::InvalidPlugin(e.to_string()))?;
 
         let ctx = Arc::from(ctx);
-        let handle = self.build_handle(name, component, ctx);
+        let handle = self.build_handle(name, tenant, component, ctx);
         Ok(handle)
     }
 
     fn build_handle(
         &self,
         name: &str,
+        tenant: TenantId,
         component: Component,
         ctx: Arc<dyn HostContext>,
     ) -> PluginHandle {
         let mut handle = PluginHandle {
             name: name.to_string(),
+            tenant,
             runtime: PluginRuntimeRef {
                 engine: self.engine.clone(),
                 linker: self.linker.clone(),
                 config: self.config.clone(),
+                usage: Arc::clone(&self.usage),
             },
             component: Arc::new(component),
             ctx: Arc::clone(&ctx),
@@ -213,6 +230,7 @@ struct PluginRuntimeRef {
     engine: Engine,
     linker: Linker<TptHost>,
     config: RuntimeConfig,
+    usage: Arc<UsageMeter>,
 }
 
 /// A live, instantiated plugin.
@@ -223,6 +241,8 @@ struct PluginRuntimeRef {
 /// owned and mutable.
 pub struct PluginHandle {
     name: String,
+    /// The tenant this plugin runs on behalf of (for usage billing).
+    tenant: TenantId,
     runtime: PluginRuntimeRef,
     component: Arc<Component>,
     ctx: Arc<dyn HostContext>,
@@ -233,6 +253,11 @@ impl PluginHandle {
     /// Operator-facing plugin name.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// The tenant this plugin is billed against.
+    pub fn tenant(&self) -> TenantId {
+        self.tenant
     }
 
     /// Reset the store with a fresh fuel budget and memory limiter.
@@ -285,6 +310,7 @@ impl PluginHandle {
     /// [`RuntimeError::ResourceExhausted`].
     pub fn run(&mut self, input: &str) -> Result<String, RuntimeError> {
         self.reset_store();
+        let fuel_before = self.runtime.config.fuel_per_call;
 
         let bindings =
             PluginBindings::instantiate(&mut self.store, &self.component, &self.runtime.linker)
@@ -293,6 +319,11 @@ impl PluginHandle {
         let run = bindings
             .call_run(&mut self.store, input)
             .map_err(map_trap)?;
+
+        // Meter the wasm fuel actually consumed this call and attribute it to the tenant.
+        let fuel_remaining = self.store.get_fuel().unwrap_or(0);
+        let consumed = fuel_before.saturating_sub(fuel_remaining);
+        self.runtime.usage.record_call(self.tenant, consumed);
 
         run.map_err(RuntimeError::PluginError)
     }

@@ -8,7 +8,9 @@
 //! - [`wip`] — a shop-floor Work-In-Process state machine derived with `tpt-erp-primitives`
 //!   `StateMachine`, enforcing legal manufacturing transitions and prerequisite checks.
 
+pub mod defects;
 pub mod mrp;
 pub mod oee;
+pub mod rework;
 pub mod telemetry;
 pub mod wip;

@@ -43,34 +43,34 @@ enum FilterKind {
 /// actually supports (e.g. we must not generate range filters for an enum that does not
 /// implement `PartialOrd`).
 fn classify_filter(ty: &Type) -> FilterKind {
-    if let Type::Path(p) = ty {
-        if let Some(seg) = p.path.segments.last() {
-            let name = seg.ident.to_string();
-            if matches!(name.as_str(), "String" | "str" | "Cow") {
-                return FilterKind::String;
-            }
-            if matches!(
-                name.as_str(),
-                "i8" | "i16"
-                    | "i32"
-                    | "i64"
-                    | "i128"
-                    | "u8"
-                    | "u16"
-                    | "u32"
-                    | "u64"
-                    | "u128"
-                    | "f32"
-                    | "f64"
-                    | "Decimal"
-                    | "DateTime"
-                    | "NaiveDate"
-                    | "NaiveDateTime"
-                    | "Date"
-                    | "Time"
-            ) {
-                return FilterKind::Range;
-            }
+    if let Type::Path(p) = ty
+        && let Some(seg) = p.path.segments.last()
+    {
+        let name = seg.ident.to_string();
+        if matches!(name.as_str(), "String" | "str" | "Cow") {
+            return FilterKind::String;
+        }
+        if matches!(
+            name.as_str(),
+            "i8" | "i16"
+                | "i32"
+                | "i64"
+                | "i128"
+                | "u8"
+                | "u16"
+                | "u32"
+                | "u64"
+                | "u128"
+                | "f32"
+                | "f64"
+                | "Decimal"
+                | "DateTime"
+                | "NaiveDate"
+                | "NaiveDateTime"
+                | "Date"
+                | "Time"
+        ) {
+            return FilterKind::Range;
         }
     }
     FilterKind::Eq
@@ -95,14 +95,14 @@ enum Kind {
 }
 
 fn kind_of(ty: &Type) -> Kind {
-    if let Type::Path(p) = ty {
-        if let Some(seg) = p.path.segments.last() {
-            return match seg.ident.to_string().as_str() {
-                "String" => Kind::String,
-                "Option" => Kind::Option,
-                _ => Kind::Other,
-            };
-        }
+    if let Type::Path(p) = ty
+        && let Some(seg) = p.path.segments.last()
+    {
+        return match seg.ident.to_string().as_str() {
+            "String" => Kind::String,
+            "Option" => Kind::Option,
+            _ => Kind::Other,
+        };
     }
     Kind::Other
 }
@@ -328,12 +328,9 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
                 FilterKind::String => {
                     let contains_ident =
                         syn::Ident::new(&format!("{}_contains", ident), ident.span());
-                    let prefix_ident =
-                        syn::Ident::new(&format!("{}_prefix", ident), ident.span());
-                    filter_decls
-                        .push(quote! { pub #contains_ident: ::core::option::Option<#ty> });
-                    filter_decls
-                        .push(quote! { pub #prefix_ident: ::core::option::Option<#ty> });
+                    let prefix_ident = syn::Ident::new(&format!("{}_prefix", ident), ident.span());
+                    filter_decls.push(quote! { pub #contains_ident: ::core::option::Option<#ty> });
+                    filter_decls.push(quote! { pub #prefix_ident: ::core::option::Option<#ty> });
                     apply_body.push(quote! {
                         if let ::core::option::Option::Some(v) = &self.#contains_ident {
                             if !entity.#ident.contains(v.as_str()) { return false; }
@@ -348,10 +345,8 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
                 FilterKind::Range => {
                     let min_ident = syn::Ident::new(&format!("{}_min", ident), ident.span());
                     let max_ident = syn::Ident::new(&format!("{}_max", ident), ident.span());
-                    filter_decls
-                        .push(quote! { pub #min_ident: ::core::option::Option<#ty> });
-                    filter_decls
-                        .push(quote! { pub #max_ident: ::core::option::Option<#ty> });
+                    filter_decls.push(quote! { pub #min_ident: ::core::option::Option<#ty> });
+                    filter_decls.push(quote! { pub #max_ident: ::core::option::Option<#ty> });
                     apply_body.push(quote! {
                         if let ::core::option::Option::Some(v) = &self.#min_ident {
                             if entity.#ident.lt(v) { return false; }

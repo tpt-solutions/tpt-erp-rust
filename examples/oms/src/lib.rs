@@ -21,6 +21,7 @@ pub mod catalog;
 pub mod checkout;
 pub mod promo;
 pub mod reservation;
+pub mod returns;
 pub mod saga;
 
 pub use catalog::{
@@ -29,4 +30,5 @@ pub use catalog::{
 pub use checkout::{CheckoutLine, CheckoutOutcome, OmsApp, OmsError};
 pub use promo::{PromoEngine, PromoHost};
 pub use reservation::{ReservationEngine, ReservationError, demo_tenant};
+pub use returns::{ReturnError, Rma, RmaLine, RmaProcessor, RmaRow, RmaStatus};
 pub use saga::{OrderSaga, SagaLine, SagaOutcome, SagaStage};

@@ -1,6 +1,6 @@
 [package]
-name = "wms"
-description = "Reference 3PL/WMS implementation on TPT ERP: real-time event-sourced inventory + wave/route optimization."
+name = "flow"
+description = "Cross-vertical reference flow on TPT ERP: an OMS order triggers a WMS pick, which triggers a TMS dispatch route, which triggers a GL posting — orchestrated entirely over tpt-erp-bus."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,23 +13,18 @@ publish = false
 tpt-erp-primitives = { workspace = true }
 tpt-erp-ledger = { workspace = true }
 tpt-erp-bus = { workspace = true }
-tpt-erp-cache = { workspace = true }
 tpt-erp-tenant = { workspace = true }
-chrono = { workspace = true }
+gl = { path = "../gl" }
+wms = { path = "../wms" }
+tms = { path = "../tms" }
+oms = { path = "../oms" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 rust_decimal = { workspace = true }
-thiserror = { workspace = true }
-async-trait = { workspace = true }
+chrono = { workspace = true }
 futures = "0.3"
-
-# Optional MQTT ingress (feature `mqtt`). The core ingestion pipeline has no
-# transport dependency; this only adds the broker adapter.
-rumqttc = { workspace = true, optional = true }
-
-[features]
-mqtt = ["dep:rumqttc"]
+anyhow = "1"
 
 [dev-dependencies]
 uuid = { workspace = true }

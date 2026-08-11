@@ -43,6 +43,8 @@ pub struct CheckoutOutcome {
     pub discount: Money<Usd>,
     pub total: Money<Usd>,
     pub promo_applied: bool,
+    /// Lines that could not be reserved and were placed on backorder (awaiting stock).
+    pub backorders: Vec<SagaLine>,
 }
 
 /// Errors surfaced by [`OmsApp::checkout`].
@@ -160,6 +162,31 @@ impl OmsApp {
             discount,
             total,
             promo_applied,
+            backorders: outcome.backorders,
+        })
+    }
+
+    /// Fulfill a backordered checkout once stock has arrived. Delegates to the order saga,
+    /// which reserves, bills, and commits the backordered lines; the order then ships.
+    pub async fn fulfill_backorders(
+        &self,
+        backorders: &[SagaLine],
+    ) -> Result<CheckoutOutcome, OmsError> {
+        let saga = OrderSaga::new(
+            self.tenant,
+            self.reservation.clone(),
+            self.journal.clone(),
+            self.coa.clone(),
+        );
+        let outcome = saga.fulfill_backorders(backorders).await?;
+        Ok(CheckoutOutcome {
+            status: outcome.status,
+            transaction_id: outcome.transaction_id.map(|t| t.as_str()),
+            subtotal: Money::<Usd>::zero(),
+            discount: Money::<Usd>::zero(),
+            total: outcome.total,
+            promo_applied: false,
+            backorders: outcome.backorders,
         })
     }
 
@@ -230,16 +257,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn checkout_handles_insufficient_stock() {
+    async fn checkout_backorders_when_stock_short_then_fulfills() {
         let tenant = crate::reservation::demo_tenant();
         let app = OmsApp::new(tenant);
         let sku = Id::new();
-        app.reservation.receive(sku, 1).await.unwrap();
+        // Only 2 in stock, but the customer wants 5.
+        app.reservation.receive(sku, 2).await.unwrap();
 
-        let res = app.checkout(vec![line(sku, 5, 10)]).await;
-        assert!(res.is_err());
-        // Nothing committed; stock fully available again (compensation released).
-        assert_eq!(app.reservation.available(sku), 1);
+        let out = app.checkout(vec![line(sku, 5, 10)]).await.unwrap();
+        // The 2 available units are reserved/committed; the remaining 3 are backordered.
+        // `total` is the full order total (all 5 units); the billed amount for the
+        // in-stock portion is reflected once stock arrives and the backorder is fulfilled.
+        assert_eq!(out.status, OrderStatus::Backordered);
+        assert_eq!(out.total, Money::<Usd>::from_major(50));
+        assert_eq!(out.backorders.len(), 1);
+        assert_eq!(out.backorders[0].qty, 3);
+        // 2 committed, nothing else sellable yet.
+        assert_eq!(app.reservation.available(sku), 0);
+
+        // Stock arrives for the backorder.
+        app.reservation.receive(sku, 3).await.unwrap();
+        let out2 = app.fulfill_backorders(&out.backorders).await.unwrap();
+        assert_eq!(out2.status, OrderStatus::Shipped);
+        assert_eq!(out2.total, Money::<Usd>::from_major(30));
+        // All 5 units committed; nothing sellable.
+        assert_eq!(app.reservation.available(sku), 0);
+        assert_eq!(app.reservation.on_hand(sku), 5);
     }
 
     // Concurrent checkouts against limited stock must never oversell end-to-end.

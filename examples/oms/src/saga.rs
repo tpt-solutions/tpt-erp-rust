@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use tpt_erp_bus::EventBus;
 use tpt_erp_ledger::{EntrySide, LedgerEntry, TransactionId};
 use tpt_erp_primitives::{Id, Money, Usd};
@@ -21,7 +22,7 @@ use gl::coa::DemoAccounts;
 use gl::journal::{JournalEngine, JournalError};
 
 /// One line the saga needs to reserve and bill.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct SagaLine {
     pub sku: Id<Sku>,
     pub qty: u32,
@@ -42,6 +43,9 @@ pub struct SagaOutcome {
     pub status: crate::catalog::OrderStatus,
     pub transaction_id: Option<TransactionId>,
     pub total: Money<Usd>,
+    /// Lines that could not be reserved and were placed on backorder (awaiting stock).
+    /// Empty when the order was fully fulfilled in one pass.
+    pub backorders: Vec<SagaLine>,
 }
 
 /// Errors raised by the saga orchestrator.
@@ -100,7 +104,10 @@ impl OrderSaga {
         self
     }
 
-    /// Run the full `Reserve -> Pay -> Fulfill -> Ship` workflow.
+    /// Run the `Reserve -> Pay -> Fulfill -> Ship` workflow. When stock is short the
+    /// unreservable quantity is placed on backorder rather than failing: the available
+    /// portion is reserved, billed, and committed, and the order parks at `Backordered`.
+    /// Call [`OrderSaga::fulfill_backorders`] once stock arrives to finish the order.
     pub async fn run(&self, lines: &[SagaLine]) -> Result<SagaOutcome, SagaError> {
         if lines.is_empty() {
             return Err(SagaError::Reserve(ReservationError::InsufficientStock {
@@ -110,25 +117,45 @@ impl OrderSaga {
             }));
         }
 
-        // --- Step 1: Reserve -------------------------------------------------
+        // --- Step 1: Reserve what is available; backorder the shortfall -----
         let mut holds: Vec<(Id<Sku>, Id<Hold>)> = Vec::with_capacity(lines.len());
+        let mut backorders: Vec<SagaLine> = Vec::new();
+        let mut total = Money::<Usd>::zero();
         for line in lines {
-            let hold = self
+            let (reserved, backorder) = self
                 .reservation
-                .reserve(line.sku, line.qty, self.hold_ttl)
+                .reserve_or_backorder(line.sku, line.qty, self.hold_ttl)
                 .await?;
-            holds.push((line.sku, hold));
+            if let Some((hold, qty)) = reserved {
+                holds.push((line.sku, hold));
+                total += line.unit_price * Decimal::from(qty);
+            }
+            if let Some((_, qty)) = backorder {
+                backorders.push(SagaLine {
+                    sku: line.sku,
+                    qty,
+                    unit_price: line.unit_price,
+                });
+            }
         }
         self.publish(
             "oms.order.reserved",
-            serde_json::json!({ "lines": holds.len() }),
+            serde_json::json!({ "lines": holds.len(), "backorders": backorders.len() }),
         )
         .await;
 
+        // If nothing could be reserved, there is nothing to bill yet — the whole order
+        // is on backorder.
+        if holds.is_empty() {
+            return Ok(SagaOutcome {
+                status: crate::catalog::OrderStatus::Backordered,
+                transaction_id: None,
+                total: Money::<Usd>::zero(),
+                backorders,
+            });
+        }
+
         // --- Step 2: Pay (post a balanced GL transaction) -------------------
-        let total = lines.iter().fold(Money::<Usd>::zero(), |acc, l| {
-            acc + l.unit_price * Decimal::from(l.qty)
-        });
         let tx_id = match self.post_sale(total).await {
             Ok(id) => Some(id),
             Err(e) => {
@@ -153,7 +180,86 @@ impl OrderSaga {
         self.publish("oms.order.fulfilled", serde_json::json!({}))
             .await;
 
-        // --- Step 4: Ship ---------------------------------------------------
+        // --- Step 4: Ship, or park on backorder if any line is still short --
+        let status = if backorders.is_empty() {
+            self.publish("oms.order.shipped", serde_json::json!({}))
+                .await;
+            crate::catalog::OrderStatus::Shipped
+        } else {
+            self.publish(
+                "oms.order.backordered",
+                serde_json::json!({ "lines": backorders.len() }),
+            )
+            .await;
+            crate::catalog::OrderStatus::Backordered
+        };
+
+        Ok(SagaOutcome {
+            status,
+            transaction_id: tx_id,
+            total,
+            backorders,
+        })
+    }
+
+    /// Finish a backordered order once stock has arrived. Promotes the backordered
+    /// quantities (now fulfillable) into holds via the reservation engine, bills them
+    /// with a balanced GL sale, commits, and ships. The returned [`SagaOutcome`] reflects
+    /// the fulfilled backorders only (callers add it to the original run's total).
+    pub async fn fulfill_backorders(
+        &self,
+        backorders: &[SagaLine],
+    ) -> Result<SagaOutcome, SagaError> {
+        if backorders.is_empty() {
+            return Err(SagaError::Reserve(ReservationError::InsufficientStock {
+                sku: Id::<Sku>::new(),
+                available: 0,
+                requested: 0,
+            }));
+        }
+
+        // Price per SKU, taken from the order's own backordered lines.
+        let price_for: std::collections::HashMap<Id<Sku>, Money<Usd>> =
+            backorders.iter().map(|l| (l.sku, l.unit_price)).collect();
+
+        // Promote every fulfillable backorder into a real hold (event-sourced).
+        let filled = self.reservation.fulfill_backorders().await?;
+        if filled.is_empty() {
+            return Err(SagaError::Reserve(ReservationError::InsufficientStock {
+                sku: Id::<Sku>::new(),
+                available: 0,
+                requested: 1,
+            }));
+        }
+
+        let mut holds: Vec<(Id<Sku>, Id<Hold>)> = Vec::with_capacity(filled.len());
+        let mut total = Money::<Usd>::zero();
+        for (sku, hold, qty) in filled {
+            holds.push((sku, hold));
+            let unit = price_for
+                .get(&sku)
+                .copied()
+                .unwrap_or_else(Money::<Usd>::zero);
+            total += unit * Decimal::from(qty);
+        }
+
+        let tx_id = match self.post_sale(total).await {
+            Ok(id) => Some(id),
+            Err(e) => {
+                for (sku, hold) in &holds {
+                    let _ = self.reservation.release(*sku, *hold).await;
+                }
+                return Err(SagaError::Pay(e));
+            }
+        };
+
+        for (sku, hold) in &holds {
+            if let Err(e) = self.reservation.confirm(*sku, *hold).await {
+                self.compensate(SagaStage::Paid, &holds, tx_id, total).await;
+                return Err(SagaError::Fulfill(e));
+            }
+        }
+
         self.publish("oms.order.shipped", serde_json::json!({}))
             .await;
 
@@ -161,6 +267,7 @@ impl OrderSaga {
             status: crate::catalog::OrderStatus::Shipped,
             transaction_id: tx_id,
             total,
+            backorders: Vec::new(),
         })
     }
 

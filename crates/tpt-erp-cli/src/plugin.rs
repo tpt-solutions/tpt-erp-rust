@@ -37,6 +37,11 @@ pub(crate) struct NewArgs {
     /// Overwrite an existing directory.
     #[arg(long)]
     force: bool,
+    /// Natural-language description of what the plugin should do. The CLI picks a
+    /// domain-appropriate guest template (pricing/tax/qc/dispatch/inventory) so a
+    /// developer can go from a sentence to a compiling plugin in one step.
+    #[arg(long)]
+    describe: Option<String>,
 }
 
 #[derive(Args)]
@@ -129,6 +134,188 @@ impl HostContext for CliHost {
     }
 }
 
+/// The default guest body used when `tpt plugin new` is given no `--describe`.
+/// It echoes the input back as JSON — a minimal, compiling starting point.
+const DEFAULT_GUEST: &str = r#"// TPT ERP plugin — computation-only by contract.
+//
+// This guest imports only `erp` (read-only ERP data) and exports `run`.
+// It has no access to files, sockets, or the host clock: the host never
+// links WASI, so a plugin can only *compute*.
+
+wit_bindgen::generate!({ world: "plugin" });
+
+use serde_json::Value;
+
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+struct Component;
+
+impl Guest for Component {
+    fn run(input: String) -> Result<String, String> {
+        // Example: echo the input back as structured JSON. Replace this
+        // with real business logic — pricing, routing, QC, etc.
+        let _: Value = serde_json::from_str(&input).map_err(|e| e.to_string())?;
+        let output = serde_json::json!({
+            "received": input,
+            "note": "computed by a TPT ERP plugin",
+        });
+        Ok(output.to_string())
+    }
+}
+
+export!(Component);
+"#;
+
+/// Pick a guest domain from a natural-language description by keyword match.
+fn detect_domain(desc: &str) -> &'static str {
+    let d = desc.to_ascii_lowercase();
+    if d.contains("tax") || d.contains("vat") {
+        "tax"
+    } else if d.contains("price")
+        || d.contains("discount")
+        || d.contains("promo")
+        || d.contains("pricing")
+    {
+        "pricing"
+    } else if d.contains("qc") || d.contains("quality") || d.contains("inspect") {
+        "qc"
+    } else if d.contains("route")
+        || d.contains("dispatch")
+        || d.contains("deliver")
+        || d.contains("fleet")
+    {
+        "dispatch"
+    } else if d.contains("inventor")
+        || d.contains("stock")
+        || d.contains("warehouse")
+        || d.contains("wms")
+    {
+        "inventory"
+    } else {
+        "generic"
+    }
+}
+
+/// Build a domain-tailored guest `src/lib.rs` from a natural-language description.
+///
+/// The description selects one of the bundled templates; each template is a complete,
+/// compiling plugin that reads ERP data through the `erp` host interface and returns a
+/// structured JSON result. This is the "natural-language to plugin" on-ramp: a developer
+/// describes intent in a sentence and gets a working starting point.
+fn scaffold_guest(desc: &str) -> String {
+    let domain = detect_domain(desc);
+    let body = match domain {
+        "pricing" => r#"
+        let v: Value = serde_json::from_str(&input).map_err(|e| e.to_string())?;
+        let account = v.get("account").and_then(|x| x.as_str()).unwrap_or("");
+        let amount = v.get("amount").and_then(|x| x.as_i64()).unwrap_or(0);
+        // Balance-tiered discount: read the customer's loyalty balance from the host.
+        let tier = match erp::get_account_balance(account) {
+            Ok(bal) => {
+                let points = bal.major;
+                if points >= 1000 { 15 } else if points >= 500 { 10 } else if points >= 100 { 5 } else { 0 }
+            }
+            Err(_) => 0,
+        };
+        let discounted = amount - amount * tier / 100;
+        let output = serde_json::json!({
+            "account": account,
+            "tier": tier,
+            "final_amount": discounted,
+        });
+        Ok(output.to_string())"#,
+        "tax" => r#"
+        let v: Value = serde_json::from_str(&input).map_err(|e| e.to_string())?;
+        let amount = v.get("amount").and_then(|x| x.as_i64()).unwrap_or(0);
+        let jurisdiction = v.get("jurisdiction").and_then(|x| x.as_str()).unwrap_or("");
+        // Flat demo tier: EU/UK 20%, US 7%, else 0.
+        let rate = match jurisdiction {
+            "eu-standard" | "uk-standard" => 20,
+            "us-standard" => 7,
+            _ => 0,
+        };
+        let tax = amount * rate / 100;
+        let output = serde_json::json!({
+            "jurisdiction": jurisdiction,
+            "estimated_tax": tax,
+        });
+        Ok(output.to_string())"#,
+        "qc" => r#"
+        let v: Value = serde_json::from_str(&input).map_err(|e| e.to_string())?;
+        let measurement = v.get("measurement").and_then(|x| x.as_f64()).unwrap_or(0.0);
+        let tolerance = v.get("tolerance").and_then(|x| x.as_f64()).unwrap_or(0.0);
+        let pass = (measurement - tolerance).abs() <= tolerance;
+        let output = serde_json::json!({
+            "measurement": measurement,
+            "tolerance": tolerance,
+            "pass": pass,
+        });
+        Ok(output.to_string())"#,
+        "dispatch" => r#"
+        let v: Value = serde_json::from_str(&input).map_err(|e| e.to_string())?;
+        let demand = v.get("demand").and_then(|x| x.as_u64()).unwrap_or(0);
+        // Prioritize high-demand stops.
+        let priority = if demand >= 100 { "high" } else if demand >= 20 { "medium" } else { "low" };
+        let output = serde_json::json!({
+            "demand": demand,
+            "priority": priority,
+        });
+        Ok(output.to_string())"#,
+        "inventory" => r#"
+        let v: Value = serde_json::from_str(&input).map_err(|e| e.to_string())?;
+        let sku = v.get("sku").and_then(|x| x.as_str()).unwrap_or("");
+        let on_hand = match erp::get_stock_level(sku) {
+            Ok(q) => q,
+            Err(_) => 0,
+        };
+        let reorder = on_hand < 50;
+        let output = serde_json::json!({
+            "sku": sku,
+            "on_hand": on_hand,
+            "reorder": reorder,
+        });
+        Ok(output.to_string())"#,
+        _ => r#"
+        let _: Value = serde_json::from_str(&input).map_err(|e| e.to_string())?;
+        let output = serde_json::json!({
+            "received": input,
+            "note": "auto-scaffolded from description; replace run() with real logic",
+        });
+        Ok(output.to_string())"#,
+    };
+
+    format!(
+        r#"// TPT ERP plugin — computation-only by contract.
+// Auto-scaffolded from description: "{desc}"
+// Detected domain: {domain}
+//
+// This guest imports only `erp` (read-only ERP data) and exports `run`.
+// It has no access to files, sockets, or the host clock: the host never
+// links WASI, so a plugin can only *compute*.
+
+wit_bindgen::generate!({{ world: "plugin" }});
+
+use serde_json::Value;
+
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+struct Component;
+
+impl Guest for Component {{
+    fn run(input: String) -> Result<String, String> {{{body}
+    }}
+}}
+
+export!(Component);
+"#,
+        desc = desc,
+        domain = domain,
+        body = body,
+    )
+}
+
 fn new(args: NewArgs) -> anyhow::Result<()> {
     let dir = &args.name;
     if dir.exists() && !args.force {
@@ -168,39 +355,11 @@ wee_alloc = "0.4"
 
     std::fs::write(dir.join("wit/erp.wit"), ERP_WIT)?;
 
-    std::fs::write(
-        dir.join("src/lib.rs"),
-        r#"// TPT ERP plugin — computation-only by contract.
-//
-// This guest imports only `erp` (read-only ERP data) and exports `run`.
-// It has no access to files, sockets, or the host clock: the host never
-// links WASI, so a plugin can only *compute*.
-
-wit_bindgen::generate!({ world: "plugin" });
-
-use serde_json::Value;
-
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-struct Component;
-
-impl Guest for Component {
-    fn run(input: String) -> Result<String, String> {
-        // Example: echo the input back as structured JSON. Replace this
-        // with real business logic — pricing, routing, QC, etc.
-        let _: Value = serde_json::from_str(&input).map_err(|e| e.to_string())?;
-        let output = serde_json::json!({
-            "received": input,
-            "note": "computed by a TPT ERP plugin",
-        });
-        Ok(output.to_string())
-    }
-}
-
-export!(Component);
-"#,
-    )?;
+    let guest = match &args.describe {
+        Some(d) => scaffold_guest(d),
+        None => DEFAULT_GUEST.to_string(),
+    };
+    std::fs::write(dir.join("src/lib.rs"), guest)?;
 
     std::fs::write(dir.join(".gitignore"), "/target\nCargo.lock\n*.wasm\n")?;
 
@@ -273,7 +432,7 @@ fn validate(args: ValidateArgs) -> anyhow::Result<()> {
     let bytes =
         std::fs::read(&args.wasm).with_context(|| format!("reading {}", args.wasm.display()))?;
     let rt = load_runtime()?;
-    match rt.load("validate", &bytes, Box::new(CliHost::default())) {
+    match rt.load("validate", tenant_id("cli"), &bytes, Box::new(CliHost::default())) {
         Ok(_) => {
             println!(
                 "✓ {} satisfies the tpt:erp `plugin` world",
@@ -283,6 +442,10 @@ fn validate(args: ValidateArgs) -> anyhow::Result<()> {
         }
         Err(e) => bail!("{} is NOT a valid plugin: {e}", args.wasm.display()),
     }
+}
+
+fn tenant_id(_tenant: &str) -> tpt_erp_wasm::TenantId {
+    tpt_erp_wasm::TenantId::new()
 }
 
 fn run_plugin(args: RunArgs) -> anyhow::Result<()> {
@@ -297,7 +460,7 @@ fn run_plugin(args: RunArgs) -> anyhow::Result<()> {
         },
     };
     let mut plugin = rt
-        .load("run", &bytes, Box::new(host))
+        .load("run", tenant_id(&args.tenant), &bytes, Box::new(host))
         .map_err(|e| anyhow::anyhow!("{} is not a valid plugin: {e}", args.wasm.display()))?;
     let out = plugin
         .run(&args.input)
@@ -341,5 +504,60 @@ mod tests {
         let host = CliHost::default();
         assert_eq!(host.current_tenant(), "");
         assert_eq!(host.account_balance("anything"), None);
+    }
+
+    #[test]
+    fn detect_domain_picks_by_keyword() {
+        assert_eq!(detect_domain("compute a volume discount"), "pricing");
+        assert_eq!(detect_domain("EU VAT tax tier"), "tax");
+        assert_eq!(detect_domain("QC tolerance check"), "qc");
+        assert_eq!(detect_domain("fleet dispatch priority"), "dispatch");
+        assert_eq!(detect_domain("warehouse stock reorder"), "inventory");
+        assert_eq!(detect_domain("do some arbitrary thing"), "generic");
+    }
+
+    #[test]
+    fn scaffold_guest_is_a_compiling_plugin_shape() {
+        // Every template must produce a complete `Guest` impl with a `run` export.
+        for desc in [
+            "volume discount pricing",
+            "tax vat calculation",
+            "quality qc inspection",
+            "route dispatch optimization",
+            "inventory stock level",
+            "mystery plugin",
+        ] {
+            let src = scaffold_guest(desc);
+            assert!(src.contains("impl Guest for Component"), "no Guest impl for {desc}");
+            assert!(src.contains("fn run(input: String)"), "no run for {desc}");
+            assert!(src.contains("export!(Component)"), "no export for {desc}");
+            assert!(src.contains("wit_bindgen::generate"), "no bindings for {desc}");
+        }
+    }
+
+    #[test]
+    fn scaffold_guest_embeds_domain_logic() {
+        let pricing = scaffold_guest("loyalty pricing discount");
+        assert!(pricing.contains("final_amount"));
+        assert!(pricing.contains("get_account_balance"));
+
+        let tax = scaffold_guest("sales tax tier");
+        assert!(tax.contains("estimated_tax"));
+
+        let qc = scaffold_guest("qc tolerance");
+        assert!(qc.contains("pass"));
+
+        let dispatch = scaffold_guest("dispatch priority");
+        assert!(dispatch.contains("priority"));
+
+        let inventory = scaffold_guest("warehouse stock");
+        assert!(inventory.contains("reorder"));
+    }
+
+    #[test]
+    fn scaffold_guest_records_description_and_domain() {
+        let src = scaffold_guest("compute a tax");
+        assert!(src.contains("Auto-scaffolded from description: \"compute a tax\""));
+        assert!(src.contains("Detected domain: tax"));
     }
 }

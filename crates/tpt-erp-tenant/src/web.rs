@@ -49,10 +49,10 @@ impl IntoResponse for TenantResolutionError {
 
 /// Resolve a tenant slug from the request headers (Host subdomain first, then header).
 fn resolve_slug(headers: &HeaderMap) -> Option<TenantSlug> {
-    if let Some(host) = headers.get(HOST).and_then(|v| v.to_str().ok()) {
-        if let Some(slug) = from_subdomain(host) {
-            return Some(slug);
-        }
+    if let Some(host) = headers.get(HOST).and_then(|v| v.to_str().ok())
+        && let Some(slug) = from_subdomain(host)
+    {
+        return Some(slug);
     }
     headers
         .get(TENANT_HEADER)
@@ -69,14 +69,14 @@ fn resolve_slug(headers: &HeaderMap) -> Option<TenantSlug> {
 /// actually scopes every query for the request.
 pub async fn tenant_context_middleware(req: Request, next: Next) -> Response {
     let (mut parts, body) = req.into_parts();
-    if let Some(slug) = resolve_slug(&parts.headers) {
-        if slug.validate().is_ok() {
-            let ctx = TenantContext {
-                id: slug.to_id(),
-                slug: slug.clone(),
-            };
-            parts.extensions.insert(ctx);
-        }
+    if let Some(slug) = resolve_slug(&parts.headers)
+        && slug.validate().is_ok()
+    {
+        let ctx = TenantContext {
+            id: slug.to_id(),
+            slug: slug.clone(),
+        };
+        parts.extensions.insert(ctx);
     }
     let req = Request::from_parts(parts, body);
     next.run(req).await
@@ -115,7 +115,7 @@ impl TenantDb {
             .bind(&self.tenant)
             .execute(&mut *tx)
             .await?;
-        let result = f(&mut *tx).await;
+        let result = f(&mut tx).await;
         match result {
             Ok(r) => {
                 tx.commit().await?;
@@ -143,20 +143,20 @@ pub async fn tenant_rls_middleware(
     mut req: Request,
     next: Next,
 ) -> Response {
-    if let Some(slug) = resolve_slug(&req.headers()) {
-        if slug.validate().is_ok() {
-            let ctx = TenantContext {
-                id: slug.to_id(),
-                slug: slug.clone(),
-            };
-            req.extensions_mut().insert(ctx.clone());
-            if let Ok(conn) = pool.acquire().await {
-                let db = std::sync::Arc::new(TenantDb {
-                    tenant: ctx.id.as_str().to_string(),
-                    conn: tokio::sync::Mutex::new(conn),
-                });
-                req.extensions_mut().insert(db);
-            }
+    if let Some(slug) = resolve_slug(req.headers())
+        && slug.validate().is_ok()
+    {
+        let ctx = TenantContext {
+            id: slug.to_id(),
+            slug: slug.clone(),
+        };
+        req.extensions_mut().insert(ctx.clone());
+        if let Ok(conn) = pool.acquire().await {
+            let db = std::sync::Arc::new(TenantDb {
+                tenant: ctx.id.as_str().to_string(),
+                conn: tokio::sync::Mutex::new(conn),
+            });
+            req.extensions_mut().insert(db);
         }
     }
     next.run(req).await

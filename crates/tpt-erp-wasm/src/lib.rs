@@ -25,18 +25,25 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let wasm: Vec<u8> = std::fs::read("plugin.wasm")?;
 //! let runtime = PluginRuntime::new(RuntimeConfig::default())?;
-//! let mut plugin = runtime.load("pricing", &wasm, Box::new(Ctx))?;
+//! let mut plugin = runtime.load("pricing", tpt_erp_tenant::TenantId::new(), &wasm, Box::new(Ctx))?;
 //! let out = plugin.run(r#"{"sku":"A-1"}"#)?;
 //! println!("{out}");
 //! # Ok(()) }
 //! ```
 
+mod billing;
 mod contract;
 pub mod host;
+mod registry;
 mod runtime;
 
+pub use billing::{BillingReport, UsageMeter, UsageRecord};
 pub use contract::Plugin;
+pub use registry::{PluginPublisher, PluginRegistry, RegistryError, SignedPlugin, generate_signing_key};
 pub use runtime::{PluginHandle, PluginRuntime, RuntimeConfig, RuntimeError};
+/// Re-exported so callers can pass a tenant identity to [`PluginRuntime::load`] without
+/// taking a direct dependency on `tpt-erp-tenant`.
+pub use tpt_erp_tenant::TenantId;
 
 use serde::{Deserialize, Serialize};
 
@@ -66,6 +73,7 @@ mod tests {
     use crate::contract::tpt::erp::erp::Host;
     use crate::host::{HostContext, TptHost};
     use crate::runtime::{PluginRuntime, RuntimeConfig, RuntimeError};
+    use tpt_erp_tenant::TenantId;
 
     /// A trivial in-memory read-model for tests.
     #[derive(Clone)]
@@ -145,7 +153,7 @@ mod tests {
             stock: None,
             tenant: String::new(),
         };
-        let res = rt.load("evil", wat.as_bytes(), Box::new(ctx));
+        let res = rt.load("evil", TenantId::new(), wat.as_bytes(), Box::new(ctx));
         assert!(matches!(res, Err(RuntimeError::InvalidPlugin(_))));
     }
 
@@ -165,7 +173,7 @@ mod tests {
             stock: None,
             tenant: String::new(),
         };
-        let res = rt.load("core", wat.as_bytes(), Box::new(ctx));
+        let res = rt.load("core", TenantId::new(), wat.as_bytes(), Box::new(ctx));
         assert!(matches!(res, Err(RuntimeError::InvalidPlugin(_))));
     }
 
@@ -201,7 +209,7 @@ mod tests {
             stock: None,
             tenant: String::new(),
         };
-        let res = rt.load("broken", wat.as_bytes(), Box::new(ctx));
+        let res = rt.load("broken", TenantId::new(), wat.as_bytes(), Box::new(ctx));
         assert!(matches!(res, Err(RuntimeError::InvalidPlugin(_))));
     }
 }

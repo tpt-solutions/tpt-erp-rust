@@ -26,6 +26,16 @@ use crate::tender::TenderKind;
 pub struct PosTerminal;
 impl Entity for PosTerminal {}
 
+/// The kind of register event recorded offline. A `Sale` is a forward sale, a `Return`
+/// is a refund (split back across the original tenders), and an `Exchange` bundles a
+/// return with a new forward sale.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SaleKind {
+    Sale,
+    Return,
+    Exchange,
+}
+
 /// A sale recorded by the register, the unit of offline/online reconciliation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SaleEvent {
@@ -34,7 +44,9 @@ pub struct SaleEvent {
     pub txn_id: String,
     /// Terminal that produced the sale.
     pub terminal: String,
-    /// Grand total of the sale.
+    /// Whether this event is a forward sale, a return refund, or an exchange.
+    pub kind: SaleKind,
+    /// Grand total of the sale (or the refund amount for a `Return`).
     pub total: Money<Usd>,
     /// Tenders applied (kind + amount).
     pub tenders: Vec<(TenderKind, Money<Usd>)>,
@@ -215,6 +227,7 @@ mod tests {
         SaleEvent {
             txn_id: txn.to_string(),
             terminal: "T1".to_string(),
+            kind: SaleKind::Sale,
             total: Money::<Usd>::from_major(major),
             tenders: vec![(TenderKind::Cash, Money::<Usd>::from_major(major))],
             at: Utc::now(),

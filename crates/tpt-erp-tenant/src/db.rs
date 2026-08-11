@@ -116,11 +116,11 @@ pub async fn tenant_db_middleware(
                 Err(_) => return TenantDbError::PoolUnavailable.into_response(),
             };
             // `SET LOCAL` is only valid inside a transaction block.
-            if let Err(_) = sqlx::query("BEGIN").execute(&mut *conn).await {
+            if sqlx::query("BEGIN").execute(&mut *conn).await.is_err() {
                 return TenantDbError::ScopingFailed.into_response();
             }
             let cmd = set_tenant_command(&ctx.id);
-            if let Err(_) = sqlx::query(&cmd).execute(&mut *conn).await {
+            if sqlx::query(&cmd).execute(&mut *conn).await.is_err() {
                 return TenantDbError::ScopingFailed.into_response();
             }
             req.extensions_mut().insert(TenantConnection::new(conn));

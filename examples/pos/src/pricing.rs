@@ -9,6 +9,7 @@
 
 use std::sync::Arc;
 
+use tpt_erp_tenant::TenantSlug;
 use tpt_erp_wasm::host::HostContext;
 use tpt_erp_wasm::{Money, PluginHandle, PluginRuntime, RuntimeConfig, RuntimeError};
 
@@ -81,7 +82,7 @@ impl PosPricingEngine {
     ) -> Result<Self, RuntimeError> {
         let host = Arc::new(PosPricingHost::new(store_balance, tenant));
         let runtime = PluginRuntime::new(RuntimeConfig::default())?;
-        let handle = runtime.load("pricing", wasm, (*host).clone_box())?;
+        let handle = runtime.load("pricing", TenantSlug(tenant.to_string()).to_id(), wasm, (*host).clone_box())?;
         Ok(Self {
             runtime: Some(runtime),
             handle: Some(handle),
@@ -97,7 +98,7 @@ impl PosPricingEngine {
             .ok_or_else(|| RuntimeError::InvalidPlugin("no runtime loaded".into()))?;
         let handle = self.handle.as_mut().expect("runtime implies handle");
         runtime
-            .load("pricing", wasm, (*self.host).clone_box())
+            .load("pricing", TenantSlug(self.host.current_tenant()).to_id(), wasm, (*self.host).clone_box())
             .map(|h| {
                 *handle = h;
             })
@@ -122,6 +123,13 @@ impl PosPricingEngine {
     /// Whether a pricing plugin is currently loaded.
     pub fn is_loaded(&self) -> bool {
         self.handle.is_some()
+    }
+
+    /// Push the latest loyalty balance to the host so the pricing plugin's balance-tiered
+    /// discount reflects what the customer has actually earned. The pricing engine reads
+    /// this value on the next [`PosPricingEngine::discount`] call.
+    pub async fn set_balance(&self, balance: Money) {
+        self.host.set_balance(balance).await;
     }
 }
 

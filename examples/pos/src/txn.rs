@@ -6,7 +6,7 @@
 //! single source of truth:
 //!
 //! ```text
-//! Cart ─▶ Tendering ─▶ Authorized ─▶ Captured
+//! Cart ─▶ Tendering ─▶ Authorized ─▶ Captured ─▶ Returned
 //!          │              │              │
 //!          ▼              ▼              ▼
 //!        Voided        Voided        Refunded
@@ -14,7 +14,9 @@
 //!
 //! A transaction carries [`LineItem`]s whose prices and tax are [`Money<Usd>`], so a
 //! currency mix-up is impossible by construction; the totals are derived by exact
-//! decimal arithmetic.
+//! decimal arithmetic. A `Captured` sale may be returned (full or line-level partial),
+//! which moves it to `Returned` and produces a refund split back across the original
+//! tenders (see [`crate::returns`]).
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -29,6 +31,11 @@ impl Entity for PosTxn {}
 #[derive(Debug)]
 pub struct PosItem;
 impl Entity for PosItem {}
+
+/// Marker entity for a customer (loyalty / return attribution).
+#[derive(Debug)]
+pub struct PosCustomer;
+impl Entity for PosCustomer {}
 
 /// A single line on a transaction: a catalog item, a quantity, an exact unit price,
 /// and the tax charged on that line — all in [`Usd`].
@@ -56,7 +63,8 @@ impl LineItem {
 /// The lifecycle of a POS transaction.
 ///
 /// `Cart -> Tendering -> Authorized -> Captured`, with a pre-capture `Voided`
-/// branch (from `Tendering` or `Authorized`) and a post-capture `Refunded` branch.
+/// branch (from `Tendering` or `Authorized`), a post-capture `Refunded` branch, and a
+/// post-capture `Returned` branch for the returns/exchange flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, StateMachine)]
 #[state_machine(transitions(
     Cart => Tendering,
@@ -66,6 +74,7 @@ impl LineItem {
     Authorized => Voided,
     Captured => Refunded,
     Captured => Voided,
+    Captured => Returned,
 ))]
 pub enum TxnStatus {
     Cart,
@@ -74,6 +83,7 @@ pub enum TxnStatus {
     Captured,
     Voided,
     Refunded,
+    Returned,
 }
 
 /// A register transaction: its status, line items, and derived money totals.
@@ -139,7 +149,7 @@ impl Transaction {
     pub fn is_settled(&self) -> bool {
         matches!(
             self.status,
-            TxnStatus::Captured | TxnStatus::Refunded | TxnStatus::Voided
+            TxnStatus::Captured | TxnStatus::Refunded | TxnStatus::Voided | TxnStatus::Returned
         )
     }
 }

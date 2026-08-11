@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use tpt_erp_tenant::TenantSlug;
 use tpt_erp_wasm::host::HostContext;
 use tpt_erp_wasm::{Money, PluginHandle, PluginRuntime, RuntimeConfig, RuntimeError};
 
@@ -89,7 +90,7 @@ impl DispatchEngine {
     ) -> Result<Self, RuntimeError> {
         let host = Arc::new(TmsDispatchHost::new(demand, tenant));
         let runtime = PluginRuntime::new(RuntimeConfig::default())?;
-        let handle = runtime.load("dispatch", wasm, (*host).clone_box())?;
+        let handle = runtime.load("dispatch", TenantSlug(tenant.to_string()).to_id(), wasm, (*host).clone_box())?;
         Ok(Self {
             runtime: Some(runtime),
             handle: Some(handle),
@@ -105,7 +106,7 @@ impl DispatchEngine {
             .ok_or_else(|| RuntimeError::InvalidPlugin("no runtime loaded".into()))?;
         let handle = self.handle.as_mut().expect("runtime implies handle");
         runtime
-            .load("dispatch", wasm, (*self.host).clone_box())
+            .load("dispatch", TenantSlug(self.host.current_tenant()).to_id(), wasm, (*self.host).clone_box())
             .map(|h| {
                 *handle = h;
             })

@@ -11,7 +11,7 @@ pub(crate) fn to_snake_case(s: &str) -> String {
         if c.is_uppercase() {
             let prev_lower = i > 0 && chars[i - 1].is_lowercase();
             let prev_upper = i > 0 && chars[i - 1].is_uppercase();
-            let next_lower = chars.get(i + 1).map_or(false, |&n| n.is_lowercase());
+            let next_lower = chars.get(i + 1).is_some_and(|&n| n.is_lowercase());
             if i > 0 && (prev_lower || (prev_upper && next_lower)) {
                 out.push('_');
             }

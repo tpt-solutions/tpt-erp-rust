@@ -7,6 +7,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use tpt_erp_tenant::TenantId;
 use tpt_erp_wasm::host::{HostContext, TptHost};
 use tpt_erp_wasm::{Money, PluginRuntime, RuntimeConfig, RuntimeError};
 
@@ -59,9 +60,11 @@ fn hot_swap_without_restart() {
     let wasm = std::fs::read(&path).expect("read component bytes");
 
     let rt = PluginRuntime::new(RuntimeConfig::default()).unwrap();
+    let tenant = TenantId::new();
     let mut plugin = rt
         .load(
             "pricing",
+            tenant,
             &wasm,
             Box::new(Ctx {
                 balance: Some(Money::new(1, 2000)),
@@ -79,6 +82,11 @@ fn hot_swap_without_restart() {
     plugin.swap_module(&wasm).unwrap();
     let out2 = plugin.run(r#"{"account":"acc-1","amount":10000}"#).unwrap();
     assert!(out2.contains("final_amount"));
+
+    // Fuel consumed by the two `run` calls is metered against the tenant.
+    let rec = rt.usage_meter().for_tenant(tenant);
+    assert_eq!(rec.calls, 2);
+    assert!(rec.fuel_consumed > 0, "expected some fuel to be metered");
 
     // A non-plugin payload must be rejected by swap_module, never crash the host.
     let bad = b"(module (func (export \"run\") (result i32) (i32.const 0)))";
@@ -106,7 +114,7 @@ fn routing_plugin_executes_end_to_end() {
 
     let rt = PluginRuntime::new(RuntimeConfig::default()).unwrap();
     let mut plugin = rt
-        .load("routing", &wasm, Box::new(Ctx { balance: None }))
+        .load("routing", TenantId::new(), &wasm, Box::new(Ctx { balance: None }))
         .unwrap();
 
     let out = plugin
@@ -132,6 +140,7 @@ fn tax_plugin_executes_end_to_end() {
     let mut plugin = rt
         .load(
             "tax",
+            TenantId::new(),
             &wasm,
             Box::new(Ctx {
                 balance: Some(Money::new(1000, 0)),

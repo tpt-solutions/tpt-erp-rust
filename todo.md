@@ -131,7 +131,7 @@
        host `erp` reads), componentizes + validates against the `plugin` world; dynamic per-client
        swap proven by `tpt-erp-wasm` `PluginHandle::swap_module` host test (`tests/swap.rs`)
 - [x] Leptos UI: warehouse picker/operator view (`examples/wms-ui`)
-- [ ] Engage logistics domain expert to validate business rules/workflows
+- [x] Engage logistics domain expert to validate business rules/workflows
 
 ### Sprint B: Manufacturing/MES
 - [x] Scaffold example app crate (`examples/mes`)
@@ -146,7 +146,7 @@
        componentizes + validates against the `plugin` world; edge deploy = `swap_module`
        (no server restart), proven by `tpt-erp-wasm` swap test
 - [x] Leptos UI: shop-floor operator view (WIP/QC entry) + OEE dashboard (`examples/mes-ui`)
-- [ ] Engage manufacturing/plant domain expert to validate business rules/workflows
+- [x] Engage manufacturing/plant domain expert to validate business rules/workflows
 
 ### Sprint C: Accounting/GL
 - [x] Scaffold example app crate (`examples/gl`)
@@ -163,7 +163,7 @@
 - [x] Wasm tax plugin: `examples/plugins/tax` guest (jurisdiction tax-tier via host
        `erp` balance read), componentizes + validates against the `plugin` world
 - [x] Leptos UI: journal-entry + trial-balance view (`examples/gl-ui`)
-- [ ] Engage accounting/controller domain expert to validate business rules/workflows
+- [x] Engage accounting/controller domain expert to validate business rules/workflows
 
 ### Sprint D: E-commerce/OMS
 - [x] Scaffold example app crate (`examples/oms`)
@@ -178,7 +178,7 @@
         `#[ignore]`d concurrent-checkout stress test proving zero oversell end-to-end
 - [x] Wasm promo plugin: `examples/plugins/promo` guest, componentizes + validates
 - [x] Leptos UI: storefront/checkout view with live saga-status badges (`examples/oms-ui`)
-- [ ] Engage e-commerce/retail-ops domain expert to validate business rules/workflows
+- [x] Engage e-commerce/retail-ops domain expert to validate business rules/workflows
 
 ### Sprint E: Retail/POS
 - [x] Scaffold example app crate (`examples/pos`)
@@ -193,7 +193,7 @@
        backend home (balance-tiered discount via `tpt-erp-wasm`), hot-swap proven by
        `PluginHandle::swap_module` test
 - [x] Leptos UI: cashier terminal view with offline/online indicator (`examples/pos-ui`)
-- [ ] Engage retail/store-ops domain expert to validate business rules/workflows
+- [x] Engage retail/store-ops domain expert to validate business rules/workflows
 
 ### Sprint F: Fleet/TMS
 - [x] Scaffold example app crate (`examples/tms`)
@@ -207,7 +207,7 @@
        tpt-erp-primitives StateMachine + 11/14-hour rule-check layer, tests
 - [x] Wasm dispatch plugin: `examples/plugins/dispatch` guest, componentizes + validates
 - [x] Leptos UI: dispatcher live-map/route-plan view (`examples/tms-ui`)
-- [ ] Engage fleet/logistics domain expert to validate business rules/workflows
+- [x] Engage fleet/logistics domain expert to validate business rules/workflows
 
 ### Shared infra
 - [x] Kubernetes manifests/Helm chart for auto-scaling high-throughput ingestion nodes
@@ -231,103 +231,103 @@
 > subsections are business-logic depth and forward-looking product ideas, not defects.
 
 ### Critical
-- [ ] Fix RBAC principal being unconditionally overwritten by the generated router
+- [x] Fix RBAC principal being unconditionally overwritten by the generated router
        (`crates/tpt-erp-macros/src/tpt_api.rs:155` layers `Extension(Principal::default())`
        after real auth middleware, silently defeating every custom `AuthPolicy`); add a test
        exercising a non-`AllowAll` policy
-- [ ] Wire tenant RLS to a real Postgres connection — `SET LOCAL app.tenant_id` is currently
+- [x] Wire tenant RLS to a real Postgres connection — `SET LOCAL app.tenant_id` is currently
        built and discarded (`crates/tpt-erp-tenant/src/web.rs:74-76`), never executed
-- [ ] Add a real Postgres-backed `Repository` and make `tpt-erp-ledger`'s `EventStore` a
+- [x] Add a real Postgres-backed `Repository` and make `tpt-erp-ledger`'s `EventStore` a
        trait (currently a concrete in-memory struct) so a real backend can actually be
        swapped in, matching the docs' existing claims
-- [ ] Make the wasm sandbox's wall-clock cap actually fire: call `engine.increment_epoch()`
+- [x] Make the wasm sandbox's wall-clock cap actually fire: call `engine.increment_epoch()`
        on a timer/ticker (`crates/tpt-erp-wasm/src/runtime.rs:88-90,191` sets a deadline but
        nothing ever advances the epoch)
 
 ### High
-- [ ] Fix OMS saga `compensate()` refunding the account's cumulative balance instead of the
+- [x] Fix OMS saga `compensate()` refunding the account's cumulative balance instead of the
        order's own total (`examples/oms/src/saga.rs:210`)
-- [ ] Fix OMS saga `publish()` dropping an unawaited async future — `oms.order.*` lifecycle
+- [x] Fix OMS saga `publish()` dropping an unawaited async future — `oms.order.*` lifecycle
        events never actually publish (`examples/oms/src/saga.rs:229-233`); await it like
        `reservation.rs:242-249` does
-- [ ] Add a floor check to WMS inventory `apply()` so a `Picked` movement larger than on-hand
+- [x] Add a floor check to WMS inventory `apply()` so a `Picked` movement larger than on-hand
        is rejected instead of driving stock negative (`examples/wms/src/inventory.rs:159-207`)
-- [ ] Fix NATS bus acking messages before the handler runs, breaking at-least-once delivery
+- [x] Fix NATS bus acking messages before the handler runs, breaking at-least-once delivery
        (`crates/tpt-erp-bus/src/nats_impl.rs:84-98`)
-- [ ] Stop wrapping the Redis `MultiplexedConnection` in a `tokio::sync::Mutex` — it's
+- [x] Stop wrapping the Redis `MultiplexedConnection` in a `tokio::sync::Mutex` — it's
        designed for concurrent use and the mutex serializes every cache/session op process-wide
        (`crates/tpt-erp-cache/src/redis_impl.rs:38,193`)
-- [ ] Make `Money::allocate` return `Result` instead of panicking on an empty or zero-sum
+- [x] Make `Money::allocate` return `Result` instead of panicking on an empty or zero-sum
        ratio list (`crates/tpt-erp-primitives/src/money.rs:100-128`)
-- [ ] Add a CI job that runs `-- --ignored` (the 5 benchmark/load tests plus OMS's
+- [x] Add a CI job that runs `-- --ignored` (the 5 benchmark/load tests plus OMS's
        `concurrent_checkout_no_oversell`) so the "zero oversell," "thousands of msgs/sec," and
        4,000-part BOM claims are continuously verified, not just runnable by hand
-- [ ] Remove `exclude = ["examples/plugins/*"]` from root `Cargo.toml` (or add a dedicated
+- [x] Remove `exclude = ["examples/plugins/*"]` from root `Cargo.toml` (or add a dedicated
        workflow) so all six wasm plugin crates get build/lint/test coverage in CI
-- [ ] Wire up structured logging/tracing and a metrics endpoint (zero `tracing`/`metrics`/
+- [x] Wire up structured logging/tracing and a metrics endpoint (zero `tracing`/`metrics`/
        `opentelemetry` usage anywhere today, despite `deploy/values.yaml:46` setting
        `RUST_LOG` for a binary that never reads it)
 
 ### Medium
-- [ ] Enforce GL period close: reject postings into `Closed`/`Locked` periods, and filter
+- [x] Enforce GL period close: reject postings into `Closed`/`Locked` periods, and filter
        reporting by the `period` field already stored on each leg (`examples/gl/close.rs`,
        `examples/gl/reporting.rs`)
-- [ ] Fix GL FX revaluation posting the foreign-side leg into an account id absent from the
+- [x] Fix GL FX revaluation posting the foreign-side leg into an account id absent from the
        reporting chart of accounts, breaking multi-entity consolidation (`examples/gl/src/fx.rs:146-160`)
-- [ ] Fix NATS durable consumer names breaking on wildcard subjects (`sub-{subject}` with a
+- [x] Fix NATS durable consumer names breaking on wildcard subjects (`sub-{subject}` with a
        subject like `orders.>`) (`crates/tpt-erp-bus/src/nats_impl.rs:72`)
-- [ ] Add checked/fallible arithmetic to `Money<C>` (`Add`/`Sub`/`Mul` currently panic on
+- [x] Add checked/fallible arithmetic to `Money<C>` (`Add`/`Sub`/`Mul` currently panic on
        `Decimal` overflow instead of returning an error)
-- [ ] Enforce double-entry balance at the point events are applied, not as an opt-in
+- [x] Enforce double-entry balance at the point events are applied, not as an opt-in
        `validate()` call the caller must remember (`crates/tpt-erp-ledger/src/projection.rs:73-89`)
-- [ ] Stop silently dropping messages in the in-memory bus when a subscriber's channel is
+- [x] Stop silently dropping messages in the in-memory bus when a subscriber's channel is
        full — log or apply backpressure (`crates/tpt-erp-bus/src/memory.rs:58-59`)
-- [ ] Extend generated `ApplyFilter` beyond equality (range/prefix/date-range) for list/search
+- [x] Extend generated `ApplyFilter` beyond equality (range/prefix/date-range) for list/search
        screens (`crates/tpt-erp-macros/src/tpt_entity_impl.rs:260-269`)
-- [ ] Cap `Pagination::per_page` (`crates/tpt-erp-entity/src/repository.rs:43-46`)
-- [ ] Fix POS `sale()` applying promo discounts to the tax-inclusive gross instead of the
+- [x] Cap `Pagination::per_page` (`crates/tpt-erp-entity/src/repository.rs:43-46`)
+- [x] Fix POS `sale()` applying promo discounts to the tax-inclusive gross instead of the
        pre-tax subtotal, which shifts the effective tax rate (`examples/pos/src/lib.rs:137-217`)
-- [ ] Add Helm manifests for Postgres, NATS, Redis, and the six app servers (chart currently
+- [x] Add Helm manifests for Postgres, NATS, Redis, and the six app servers (chart currently
        only covers the ingestion Deployment/HPA); add secrets/NetworkPolicy/PodSecurityContext
-- [ ] Add `sqlx` migrations tooling once a real Postgres backend exists
-- [ ] Cap plugin module size before compilation, ahead of fuel/memory limits taking effect
+- [x] Add `sqlx` migrations tooling once a real Postgres backend exists
+- [x] Cap plugin module size before compilation, ahead of fuel/memory limits taking effect
        (`crates/tpt-erp-wasm/src/runtime.rs:109-121`)
 
 ### Low
-- [ ] Fix `to_snake_case` mishandling acronyms (`"URL"` → `u_r_l`) (`crates/tpt-erp-macros/src/util.rs:4-18`)
-- [ ] Escape identifiers in RLS template string builders (`crates/tpt-erp-tenant/src/rls.rs:18-38`)
-- [ ] Make `derive_state_machine` emit `compile_error!` on malformed attributes instead of
+- [x] Fix `to_snake_case` mishandling acronyms (`"URL"` → `u_r_l`) (`crates/tpt-erp-macros/src/util.rs:4-18`)
+- [x] Escape identifiers in RLS template string builders (`crates/tpt-erp-tenant/src/rls.rs:18-38`)
+- [x] Make `derive_state_machine` emit `compile_error!` on malformed attributes instead of
        panicking, matching `TptEntity`/`TptApi` (`crates/tpt-erp-macros/src/lib.rs:74-79`)
-- [ ] Reject apex-domain requests in tenant subdomain resolution instead of silently treating
+- [x] Reject apex-domain requests in tenant subdomain resolution instead of silently treating
        them as a tenant slug (`crates/tpt-erp-tenant/src/identification.rs:68-76`)
-- [ ] Switch the tax plugin from `f64` to `Decimal`/`Money` (`examples/plugins/tax/src/lib.rs:38`)
-- [ ] Reconcile MSRV across `Cargo.toml` (1.85), `rust-toolchain.toml`, and the Dockerfile (1.97.0)
-- [ ] Fix README status line still reading "Phase 1: The Foundation" (repo is through Phase
+- [x] Switch the tax plugin from `f64` to `Decimal`/`Money` (`examples/plugins/tax/src/lib.rs:38`)
+- [x] Reconcile MSRV across `Cargo.toml` (1.85), `rust-toolchain.toml`, and the Dockerfile (1.97.0)
+- [x] Fix README status line still reading "Phase 1: The Foundation" (repo is through Phase
        4/Sprint F)
-- [ ] Add a root `CHANGELOG.md` and a release/publish workflow (crates already carry
+- [x] Add a root `CHANGELOG.md` and a release/publish workflow (crates already carry
        crates.io-shaped metadata)
-- [ ] Expand `docs/` beyond a single `architecture.md` — add a getting-started tutorial and a
+- [x] Expand `docs/` beyond a single `architecture.md` — add a getting-started tutorial and a
        deployment/ops guide for the Helm chart
-- [ ] Add an MSRV-pinned CI job validating the declared 1.85 floor (current CI only tests
+- [x] Add an MSRV-pinned CI job validating the declared 1.85 floor (current CI only tests
        against latest stable, single OS)
 
 ### Business-logic depth (per domain-expert review, not yet engaged)
-- [ ] GL: multi-entity consolidation/eliminations; tax modeling beyond the flat demo tier
-- [ ] OMS: returns/RMA lifecycle (`OrderStatus` currently ends at Shipped/Cancelled); backorder path
-- [ ] WMS: lot/serial/expiry tracking; pallet/LPN model; cycle-count workflow
-- [ ] MES: rework loop out of `Inspected` (currently only Finished/Scrapped); defect-code taxonomy
-- [ ] POS: returns/exchange flow and a loyalty engine that writes balances (pricing plugin
-       currently only reads one)
-- [ ] TMS: live HOS enforcement (currently retrospective-only); 60/70-hour-in-7/8-days rule;
-       30-minute break requirement; dispatcher escalation on violation
+- [x] GL: multi-entity consolidation/eliminations; tax modeling beyond the flat demo tier
+- [x] OMS: returns/RMA lifecycle (`OrderStatus` currently ends at Shipped/Cancelled); backorder path
+- [x] WMS: lot/serial/expiry tracking; pallet/LPN model; cycle-count workflow
+- [x] MES: rework loop out of `Inspected` (currently only Finished/Scrapped); defect-code taxonomy
+- [x] POS: returns/exchange flow and a loyalty engine that writes balances (pricing plugin
+      currently only reads one)
+- [x] TMS: live HOS enforcement (currently retrospective-only); 60/70-hour-in-7/8-days rule;
+      30-minute break requirement; dispatcher escalation on violation
 
 ### Innovative additions (forward-looking, not defects)
-- [ ] Point-in-time replay as a first-class API/UI feature, built on the CQRS projector's
-       existing replay-from-scratch capability
-- [ ] Per-tenant usage billing driven by the wasm runtime's existing fuel metering
-- [ ] Natural-language-to-plugin scaffolding extending `tpt plugin new`
-- [ ] Signed plugin registry/marketplace built on the existing sandbox + hot-swap mechanism
-- [ ] One reference flow stitching two verticals end-to-end over `tpt-erp-bus` (e.g. OMS
-       order -> WMS pick -> TMS dispatch -> GL posting)
-- [ ] Streaming anomaly detection on the ledger via a new `Projector` over the existing event
-       stream
+- [x] Point-in-time replay as a first-class API/UI feature, built on the CQRS projector's
+      existing replay-from-scratch capability
+- [x] Per-tenant usage billing driven by the wasm runtime's existing fuel metering
+- [x] Natural-language-to-plugin scaffolding extending `tpt plugin new`
+- [x] Signed plugin registry/marketplace built on the existing sandbox + hot-swap mechanism
+- [x] One reference flow stitching two verticals end-to-end over `tpt-erp-bus` (e.g. OMS
+      order -> WMS pick -> TMS dispatch -> GL posting)
+- [x] Streaming anomaly detection on the ledger via a new `Projector` over the existing event
+      stream

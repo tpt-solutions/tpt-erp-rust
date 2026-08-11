@@ -26,6 +26,7 @@ members = [
     "examples/pos-ui",
     "examples/tms",
     "examples/tms-ui",
+    "examples/flow",
 ]
 
 exclude = [
@@ -74,6 +75,8 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 leptos = { version = "0.7", default-features = false }
 rayon = "1"
 rumqttc = { version = "0.24", features = ["use-rustls"] }
+rand = "0.8"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
 
 [workspace.lints.rust]
 unsafe_code = "warn"

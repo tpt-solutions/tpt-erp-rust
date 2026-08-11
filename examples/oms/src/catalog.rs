@@ -42,8 +42,13 @@ pub struct OrderLine {
 /// The lifecycle of an order, enforced by a [`StateMachine`].
 ///
 /// `Cart -> Reserved -> Paid -> Fulfilled -> Shipped`, with compensation
-/// branches back to `Cancelled` from `Reserved` or `Paid`. Illegal jumps
-/// (e.g. `Cart -> Paid`) are rejected at runtime with a typed error.
+/// branches back to `Cancelled` from `Reserved` or `Paid`. Once shipped, a
+/// return/RMA can drive `Shipped -> ReturnRequested -> ReturnAuthorized ->
+/// ReturnReceived -> Refunded` (or be `ReturnRejected`). If stock is short at
+/// reserve time, the unavailable quantity is placed on backorder and the order
+/// parks at `Backordered` until the backorder can be fulfilled and shipped.
+/// Illegal jumps (e.g. `Cart -> Paid`, `Shipped -> Refunded`) are rejected at
+/// runtime with a typed error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, StateMachine)]
 #[state_machine(transitions(
     Cart => Reserved,
@@ -52,6 +57,14 @@ pub struct OrderLine {
     Fulfilled => Shipped,
     Reserved => Cancelled,
     Paid => Cancelled,
+    Shipped => ReturnRequested,
+    ReturnRequested => ReturnAuthorized,
+    ReturnRequested => ReturnRejected,
+    ReturnAuthorized => ReturnReceived,
+    ReturnReceived => Refunded,
+    ReturnReceived => ReturnRejected,
+    Reserved => Backordered,
+    Backordered => Shipped,
 ))]
 pub enum OrderStatus {
     Cart,
@@ -60,6 +73,12 @@ pub enum OrderStatus {
     Fulfilled,
     Shipped,
     Cancelled,
+    ReturnRequested,
+    ReturnAuthorized,
+    ReturnReceived,
+    Refunded,
+    ReturnRejected,
+    Backordered,
 }
 
 /// A catalog product.
@@ -181,5 +200,42 @@ pub fn new_order(
         updated_at: now,
         created_by: Some(by.clone()),
         updated_by: Some(by),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legal_return_transitions_allowed() {
+        assert!(OrderStatus::Shipped.can_transition(OrderStatus::ReturnRequested));
+        assert!(OrderStatus::ReturnRequested.can_transition(OrderStatus::ReturnAuthorized));
+        assert!(OrderStatus::ReturnAuthorized.can_transition(OrderStatus::ReturnReceived));
+        assert!(OrderStatus::ReturnReceived.can_transition(OrderStatus::Refunded));
+        // A backorder is reachable from a reserved cart line.
+        assert!(OrderStatus::Reserved.can_transition(OrderStatus::Backordered));
+        assert!(OrderStatus::Backordered.can_transition(OrderStatus::Shipped));
+    }
+
+    #[test]
+    fn illegal_return_transitions_rejected() {
+        // Cannot refund before the item is received back.
+        assert!(!OrderStatus::Shipped.can_transition(OrderStatus::Refunded));
+        assert!(!OrderStatus::ReturnRequested.can_transition(OrderStatus::Refunded));
+        assert!(!OrderStatus::Cart.can_transition(OrderStatus::Refunded));
+        // A fulfilled order cannot skip straight to a return.
+        assert!(!OrderStatus::Fulfilled.can_transition(OrderStatus::ReturnRequested));
+        // Backordered orders cannot be cancelled mid-flight via an illegal jump.
+        assert!(!OrderStatus::Backordered.can_transition(OrderStatus::Cancelled));
+    }
+
+    #[test]
+    fn return_transition_enforced_by_state_machine() {
+        let s = OrderStatus::Shipped;
+        let r = s.transition(OrderStatus::ReturnRequested).unwrap();
+        assert_eq!(r, OrderStatus::ReturnRequested);
+        // Illegal jump yields the generated transition error.
+        assert!(s.transition(OrderStatus::Refunded).is_err());
     }
 }

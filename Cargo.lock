@@ -896,6 +896,7 @@ dependencies = [
  "fiat-crypto",
  "rustc_version",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -1014,6 +1015,7 @@ version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
+ "pkcs8",
  "signature",
 ]
 
@@ -1025,9 +1027,12 @@ checksum = "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
+ "rand_core",
+ "serde",
  "sha2",
  "signature",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -1140,6 +1145,28 @@ name = "find-msvc-tools"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26b73573e6edcd2af0cdf47bd6cb58f0b3839491263c314eaad1ccf24430e1de"
+
+[[package]]
+name = "flow"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "futures",
+ "gl",
+ "oms",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "tms",
+ "tokio",
+ "tpt-erp-bus",
+ "tpt-erp-ledger",
+ "tpt-erp-primitives",
+ "tpt-erp-tenant",
+ "uuid",
+ "wms",
+]
 
 [[package]]
 name = "flume"
@@ -4552,11 +4579,15 @@ dependencies = [
 name = "tpt-erp-wasm"
 version = "0.1.0"
 dependencies = [
+ "ed25519-dalek",
+ "rand",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
  "tpt-erp-ledger",
+ "tpt-erp-primitives",
+ "tpt-erp-tenant",
  "wasmtime",
 ]
 
@@ -5544,6 +5575,7 @@ name = "wms"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "futures",
  "rumqttc",
  "rust_decimal",
