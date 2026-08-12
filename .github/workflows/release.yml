@@ -22,7 +22,7 @@ jobs:
     name: verify (fmt / clippy / test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -58,7 +58,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Generate CycloneDX SBOM
         uses: anchore/sbom-action@v0
@@ -78,7 +78,7 @@ jobs:
     needs: [verify, sbom]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@stable
