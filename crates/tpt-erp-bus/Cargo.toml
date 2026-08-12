@@ -21,7 +21,7 @@ futures = "0.3"
 tokio = { workspace = true, features = ["sync", "rt-multi-thread", "macros"] }
 
 # Optional NATS JetStream backend.
-async-nats = { version = "0.40", optional = true }
+async-nats = { version = "0.50", optional = true }
 
 [features]
 # Enables the NATS JetStream-backed implementation.
