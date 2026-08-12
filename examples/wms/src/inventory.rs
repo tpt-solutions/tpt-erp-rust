@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tpt_erp_cache::{CacheError, ReadModelCache};
 use tpt_erp_ledger::{Event, EventStore, InMemoryEventStore, Projector, StoredEvent, replay};
@@ -353,7 +353,7 @@ impl InventoryEngine {
     pub async fn apply(&self, key: StockKey, movement: Movement) -> Result<i64, InventoryError> {
         let new_qty = {
             let idx = Self::shard_index(&key);
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
             Self::append_movement_locked(&mut shard, key, movement)?
         };
 
@@ -398,7 +398,7 @@ impl InventoryEngine {
     ) -> Result<i64, InventoryError> {
         let new_qty = {
             let idx = Self::shard_index(&key);
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
             // Floor check is applied *before* the append, so a movement that would drive
             // on-hand negative is rejected without ever being written to the log.
             let current = *shard.on_hand.entry(key).or_insert(0);
@@ -433,14 +433,14 @@ impl InventoryEngine {
     /// Read the cached/derived on-hand quantity for a key.
     pub fn on_hand(&self, key: StockKey) -> i64 {
         let idx = Self::shard_index(&key);
-        let shard = self.shards[idx].lock().unwrap();
+        let shard = self.shards[idx].lock();
         *shard.on_hand.get(&key).unwrap_or(&0)
     }
 
     /// Current event-log version for a key (used by optimistic-concurrency clients).
     pub fn version(&self, key: StockKey) -> u64 {
         let idx = Self::shard_index(&key);
-        let shard = self.shards[idx].lock().unwrap();
+        let shard = self.shards[idx].lock();
         shard.store.version(&key)
     }
 
@@ -450,8 +450,8 @@ impl InventoryEngine {
     }
 
     async fn after_write(&self, key: StockKey, new_qty: i64) {
-        if new_qty < self.reorder_point {
-            if let Some(bus) = &self.bus {
+        if new_qty < self.reorder_point
+            && let Some(bus) = &self.bus {
                 let payload = serde_json::json!({
                     "bin": key.bin.as_str(),
                     "sku": key.sku.as_str(),
@@ -466,7 +466,6 @@ impl InventoryEngine {
                     self.published_jobs.fetch_add(1, Ordering::Relaxed);
                 }
             }
-        }
         if let Some(cache) = &self.cache {
             cache
                 .put(
@@ -507,7 +506,7 @@ impl InventoryEngine {
         }
         // Reject duplicate serials before mutating any state.
         {
-            let s = self.serials.lock().unwrap();
+            let s = self.serials.lock();
             for sn in &serials {
                 if s.contains_key(sn) {
                     return Err(InventoryError::DuplicateSerial(sn.clone()));
@@ -517,7 +516,7 @@ impl InventoryEngine {
 
         let new_qty = {
             let idx = Self::shard_index(&key);
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
             let new_qty = Self::append_movement_locked(&mut shard, key, Movement::Received(qty))?;
             let lots = shard.lots.entry(key).or_default();
             if let Some(ld) = lots.iter_mut().find(|l| l.lot == lot) {
@@ -549,7 +548,7 @@ impl InventoryEngine {
         };
 
         if !serials.is_empty() {
-            let mut s = self.serials.lock().unwrap();
+            let mut s = self.serials.lock();
             for sn in &serials {
                 s.insert(sn.clone(), (key, lot.clone()));
             }
@@ -580,7 +579,7 @@ impl InventoryEngine {
         }
         let (consumptions, new_qty, picked_serials) = {
             let idx = Self::shard_index(&key);
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
 
             // 1. Plan the FEFO consumption and mutate the per-lot ledger. This borrow of
             //    `shard.lots` is scoped so it ends before we touch the movement log and the
@@ -631,7 +630,7 @@ impl InventoryEngine {
         };
 
         if !picked_serials.is_empty() {
-            let mut s = self.serials.lock().unwrap();
+            let mut s = self.serials.lock();
             for sn in &picked_serials {
                 s.remove(sn);
             }
@@ -654,7 +653,7 @@ impl InventoryEngine {
         }
         let (consumption, new_qty, picked_serials) = {
             let idx = Self::shard_index(&key);
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
 
             // 1. Validate against the lot ledger (read-only borrow, scoped so it ends
             //    before we mutate `shard` in steps 2-3).
@@ -667,14 +666,13 @@ impl InventoryEngine {
                     }
                 })?;
                 let ld = &lots[i];
-                if let Some(exp) = ld.expiry {
-                    if exp < as_of {
+                if let Some(exp) = ld.expiry
+                    && exp < as_of {
                         return Err(InventoryError::ExpiredLot {
                             key,
                             lot: lot.clone(),
                         });
                     }
-                }
                 if ld.on_hand < qty {
                     return Err(InventoryError::OverLotQuantity {
                         key,
@@ -701,12 +699,11 @@ impl InventoryEngine {
             shard.store.append(ev);
 
             // 3. Mutate the lot ledger now that the read borrow has ended.
-            if let Some(lots) = shard.lots.get_mut(&key) {
-                if let Some(ld) = lots.iter_mut().find(|l| l.lot == lot) {
+            if let Some(lots) = shard.lots.get_mut(&key)
+                && let Some(ld) = lots.iter_mut().find(|l| l.lot == lot) {
                     ld.serials.drain(0..n);
                     ld.on_hand -= qty;
                 }
-            }
 
             (
                 LotConsumption {
@@ -720,7 +717,7 @@ impl InventoryEngine {
         };
 
         if !picked_serials.is_empty() {
-            let mut s = self.serials.lock().unwrap();
+            let mut s = self.serials.lock();
             for sn in &picked_serials {
                 s.remove(sn);
             }
@@ -733,13 +730,13 @@ impl InventoryEngine {
     /// Snapshot of the per-lot ledger at a bin.
     pub fn lots(&self, key: StockKey) -> Vec<LotDetail> {
         let idx = Self::shard_index(&key);
-        let shard = self.shards[idx].lock().unwrap();
+        let shard = self.shards[idx].lock();
         shard.lots.get(&key).cloned().unwrap_or_default()
     }
 
     /// Resolve where a serial currently resides.
     pub fn serial_location(&self, sn: &SerialNumber) -> Option<(StockKey, LotNumber)> {
-        self.serials.lock().unwrap().get(sn).cloned()
+        self.serials.lock().get(sn).cloned()
     }
 
     // ----- Pallet / LPN model ------------------------------------------------------
@@ -758,7 +755,7 @@ impl InventoryEngine {
                 sku: line.sku,
             };
             let idx = Self::shard_index(&key);
-            let shard = self.shards[idx].lock().unwrap();
+            let shard = self.shards[idx].lock();
             let have = shard
                 .lots
                 .get(&key)
@@ -779,7 +776,7 @@ impl InventoryEngine {
             location,
             lines,
         };
-        self.pallets.lock().unwrap().insert(id, pallet);
+        self.pallets.lock().insert(id, pallet);
         Ok(id)
     }
 
@@ -790,7 +787,6 @@ impl InventoryEngine {
         let pallet = self
             .pallets
             .lock()
-            .unwrap()
             .get(&lpn)
             .cloned()
             .ok_or(InventoryError::PalletNotFound(lpn))?;
@@ -805,7 +801,7 @@ impl InventoryEngine {
             self.transfer_lot(from, line.lot.clone(), line.qty, pallet.location, to_bin)
                 .await?;
         }
-        if let Some(p) = self.pallets.lock().unwrap().get_mut(&lpn) {
+        if let Some(p) = self.pallets.lock().get_mut(&lpn) {
             p.location = to_bin;
         }
         Ok(())
@@ -822,7 +818,7 @@ impl InventoryEngine {
         as_of: NaiveDate,
     ) -> Result<Vec<LotConsumption>, InventoryError> {
         let location = {
-            let mut ps = self.pallets.lock().unwrap();
+            let mut ps = self.pallets.lock();
             let p = ps.get(&lpn).ok_or(InventoryError::PalletNotFound(lpn))?;
             let line = p
                 .lines
@@ -874,7 +870,7 @@ impl InventoryEngine {
         }
         let (moved_serials, expiry) = {
             let idx = Self::shard_index(&key);
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
             let lots = shard
                 .lots
                 .get_mut(&key)
@@ -921,14 +917,14 @@ impl InventoryEngine {
             sku: key.sku,
         };
         if !moved_serials.is_empty() {
-            let mut s = self.serials.lock().unwrap();
+            let mut s = self.serials.lock();
             for sn in &moved_serials {
                 s.insert(sn.clone(), (dest, lot.clone()));
             }
         }
         let new_qty = {
             let idx = Self::shard_index(&dest);
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
             let new_qty = Self::append_movement_locked(&mut shard, dest, Movement::Received(qty))?;
             let lots = shard.lots.entry(dest).or_default();
             if let Some(ld) = lots.iter_mut().find(|l| l.lot == lot) {
@@ -965,7 +961,7 @@ impl InventoryEngine {
 
     /// Look up a pallet by its LPN.
     pub fn pallet(&self, lpn: LpnId) -> Option<Pallet> {
-        self.pallets.lock().unwrap().get(&lpn).cloned()
+        self.pallets.lock().get(&lpn).cloned()
     }
 
     // ----- Cycle-count workflow ----------------------------------------------------
@@ -974,7 +970,7 @@ impl InventoryEngine {
     pub fn generate_count_task(&self, bin: Id<Bin>) -> CountTask {
         let mut lines = Vec::new();
         for shard in &self.shards {
-            let s = shard.lock().unwrap();
+            let s = shard.lock();
             for (k, q) in &s.on_hand {
                 if k.bin == bin && *q != 0 {
                     lines.push(k.sku);
@@ -1022,7 +1018,7 @@ impl InventoryEngine {
     pub async fn rebuild_read_models(&self) -> Result<HashMap<StockKey, i64>, InventoryError> {
         let mut all: Vec<StoredEvent<StockKey>> = Vec::new();
         for shard in &self.shards {
-            let s = shard.lock().unwrap();
+            let s = shard.lock();
             all.extend(s.store.log().iter().cloned());
         }
         let events: Vec<(StockKey, Movement)> = all
@@ -1059,7 +1055,7 @@ impl InventoryEngine {
     ) -> Result<HashMap<StockKey, Vec<LotDetail>>, InventoryError> {
         let mut all: Vec<StoredEvent<StockKey>> = Vec::new();
         for shard in &self.shards {
-            let s = shard.lock().unwrap();
+            let s = shard.lock();
             all.extend(s.store.log().iter().cloned());
         }
         let events: Vec<(StockKey, LotEvent)> = all
@@ -1088,7 +1084,7 @@ fn build_pick_plan(
     // Candidate lots: not expired. Sort by expiry ascending so the nearest-expiry lot
     // is consumed first; `None` (no expiry) sorts after any concrete date.
     let mut candidates: Vec<usize> = (0..lots.len())
-        .filter(|&i| lots[i].expiry.map_or(true, |e| e >= as_of))
+        .filter(|&i| lots[i].expiry.is_none_or(|e| e >= as_of))
         .collect();
     candidates.sort_by_key(|&i| lots[i].expiry);
 
@@ -1109,7 +1105,7 @@ fn build_pick_plan(
     if remaining > 0 {
         let expired: Vec<&LotDetail> = lots
             .iter()
-            .filter(|l| l.expiry.map_or(false, |e| e < as_of))
+            .filter(|l| l.expiry.is_some_and(|e| e < as_of))
             .collect();
         if !expired.is_empty() {
             let lot = expired.iter().min_by_key(|l| l.expiry).unwrap().lot.clone();
@@ -1208,6 +1204,7 @@ mod tests {
     use super::*;
     use tpt_erp_bus::memory::InMemoryBus;
     use tpt_erp_cache::memory::InMemoryCache;
+    use chrono::Duration;
 
     fn key() -> StockKey {
         StockKey {

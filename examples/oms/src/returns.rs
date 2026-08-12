@@ -86,7 +86,7 @@ pub struct RmaProcessor {
     reservation: std::sync::Arc<ReservationEngine>,
     journal: std::sync::Arc<JournalEngine<Usd>>,
     coa: DemoAccounts<Usd>,
-    bus: Option<Box<dyn EventBus>>,
+    bus: Option<std::sync::Arc<dyn EventBus>>,
     period: String,
 }
 
@@ -107,7 +107,7 @@ impl RmaProcessor {
     }
 
     /// Attach a bus for RMA lifecycle events.
-    pub fn with_bus(mut self, bus: Box<dyn EventBus>) -> Self {
+    pub fn with_bus(mut self, bus: std::sync::Arc<dyn EventBus>) -> Self {
         self.bus = Some(bus);
         self
     }
@@ -190,12 +190,15 @@ impl RmaProcessor {
 
     fn publish(&self, rma: &RmaRow, subject: &str) {
         if let Some(bus) = &self.bus {
-            let _ = bus.publish(
-                subject,
-                serde_json::json!({ "rma": rma.id.as_str(), "order": rma.order.as_str(), "refund": rma.refund_total.amount().to_string() })
-                    .to_string()
-                    .as_bytes(),
-            );
+            // Fire-and-forget, but actually drive the future (don't drop it) so the
+            // RMA lifecycle event is published.
+            let bus = std::sync::Arc::clone(bus);
+            let subject = subject.to_string();
+            let payload = serde_json::json!({ "rma": rma.id.as_str(), "order": rma.order.as_str(), "refund": rma.refund_total.amount().to_string() })
+                .to_string();
+            tokio::spawn(async move {
+                let _ = bus.publish(&subject, payload.as_bytes()).await;
+            });
         }
     }
 }

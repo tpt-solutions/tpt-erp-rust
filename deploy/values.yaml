@@ -77,6 +77,9 @@ postgres:
   image: "postgres:16-alpine"
   database: tpt_erp
   username: tpt
+  # REQUIRED: override this before installing. The chart refuses to install with the
+  # default placeholder (see deploy/templates/secrets.yaml). Generate one with e.g.
+  #   helm install ... --set postgres.password=$(openssl rand -base64 24)
   password: "change-me-in-prod"
   storage: "10Gi"
   resources:

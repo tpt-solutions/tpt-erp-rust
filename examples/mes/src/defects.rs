@@ -231,14 +231,14 @@ mod tests {
         let major = lookup_code("SUR-002").unwrap().finding(None, "pitting");
         let crit = lookup_code("ELE-001").unwrap().finding(None, "dead");
         assert_eq!(
-            recommended_disposition(&[minor.clone()]),
+            recommended_disposition(std::slice::from_ref(&minor)),
             Disposition::UseAsIs
         );
         assert_eq!(
-            recommended_disposition(&[major.clone()]),
+            recommended_disposition(std::slice::from_ref(&major)),
             Disposition::Rework
         );
-        assert_eq!(recommended_disposition(&[crit.clone()]), Disposition::Scrap);
+        assert_eq!(recommended_disposition(std::slice::from_ref(&crit)), Disposition::Scrap);
         // Worst severity wins across a mix.
         assert_eq!(
             recommended_disposition(&[minor, major, crit]),

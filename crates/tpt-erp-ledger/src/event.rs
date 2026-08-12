@@ -19,8 +19,12 @@ pub enum EventStoreError {
     #[error("failed to serialize event payload: {0}")]
     Serialize(#[from] serde_json::Error),
     /// A backend (e.g. Postgres) error.
+    ///
+    /// The original error is preserved as the [`std::error::Error::source`], so callers
+    /// can downcast to distinguish failure modes (e.g. connection loss from a constraint
+    /// violation) rather than only seeing a flattened string.
     #[error("event store backend error: {0}")]
-    Backend(String),
+    Backend(#[source] Box<dyn std::error::Error + Send + Sync>),
 }
 
 /// A domain event ready to be appended. The `payload` is any serializable value; it is

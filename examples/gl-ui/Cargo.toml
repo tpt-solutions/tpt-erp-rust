@@ -21,6 +21,7 @@ ssr = ["leptos/ssr"]
 hydrate = ["leptos/hydrate", "leptos/csr"]
 
 [dependencies]
+parking_lot = { workspace = true }
 tpt-erp-primitives = { workspace = true }
 tpt-erp-ledger = { workspace = true }
 gl = { workspace = true }

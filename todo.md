@@ -331,3 +331,124 @@
       order -> WMS pick -> TMS dispatch -> GL posting)
 - [x] Streaming anomaly detection on the ledger via a new `Projector` over the existing event
       stream
+
+## Phase 6: Post-Hardening Review (2026-08-12)
+> Findings from a follow-up review of `crates/`, `examples/`, CI, and onboarding/adoption
+> flow, conducted independently of the Phase 5 self-review. Several items here recur in
+> code adjacent to what Phase 5 claims to have fixed, so treat Phase 5's checkmarks as
+> unverified until spot-checked against current code. Critical/High are correctness or
+> security bugs; Medium/Low are hygiene; the last two subsections are adoption/DX and
+> forward-looking product ideas, not defects.
+
+### Critical
+- [x] Fix the ledger's Postgres mirror silently losing events: `EventStore::append()`
+       returns success as soon as the in-memory store is updated, then spawns a detached
+       `tokio::spawn` for the Postgres write whose error is discarded (`let _ = ...`)
+       (`crates/tpt-erp-ledger/src/postgres_store.rs:88-121`). A DB outage or constraint
+       violation silently and permanently loses a posted financial transaction with no
+       error surfaced anywhere. Note this is the same dropped-future anti-pattern already
+       identified and fixed in `examples/oms/src/saga.rs:352-353` — the fix didn't
+       propagate to this later-added code path.
+- [ ] Wire real authentication: no middleware anywhere in the repo populates `Principal`
+       from a verified credential. Every shipped `AuthPolicy` either always allows
+       (`AllowAll::authorize`, `crates/tpt-erp-entity/src/auth.rs:50-61`) or ignores the
+       (always-default/anonymous) principal entirely (`StaffAuth::authorize`,
+       `examples/oms/src/catalog.rs:141-145`). Tenant *selection* is also unauthenticated:
+       `resolve_slug` trusts a client-supplied `X-Tenant-Id` header or `Host` subdomain
+       with no signature/session check (`crates/tpt-erp-tenant/src/web.rs:51-61`), so any
+       caller can route into another tenant's data. No access control is actually enforced
+       anywhere as shipped.
+- [x] Add the `postgres`/`sqlx` Cargo feature to CI: it's not a default feature and no
+       workflow builds, lints, or tests with it enabled, so `postgres_repo.rs`,
+       `postgres_store.rs`, and `tenant/db.rs` — the actual production backends — are
+       never compiled or verified by automation (`.github/workflows/ci.yml`).
+- [x] Consolidate the two divergent implementations of the RLS `SET LOCAL app.tenant_id`
+       statement — raw `format!` string in `crates/tpt-erp-tenant/src/rls.rs:24-25`
+       (used by `db.rs:122-123`) vs. a parameterized `sqlx::query(...).bind()` version in
+       `crates/tpt-erp-tenant/src/web.rs:114-116`. Confirm the parameterized form actually
+       works against real Postgres (`SET`/`SET LOCAL` doesn't accept bind params in all
+       driver/protocol combinations) and add an integration test against a real Postgres
+       instance (e.g. testcontainers) — this path is untested by CI today (see above).
+
+### High
+- [x] Replace the pervasive `.lock().unwrap()`/`.expect("... poisoned")` pattern on shared
+       state (`crates/tpt-erp-cache/src/memory.rs`, `crates/tpt-erp-entity/src/repository.rs`,
+       `examples/server/src/lib.rs`, `examples/gl/src/journal.rs`,
+       `examples/wms/src/inventory.rs`, `examples/oms/src/reservation.rs`, and others). A
+       single panicking request permanently poisons the lock; since `examples/server`'s
+       `AppState` is one process-wide `Mutex<HashMap<TenantId, ...>>`, this degrades the
+       whole multi-tenant server for every tenant until restart. Prefer `parking_lot::Mutex`
+       (non-poisoning) or explicit `PoisonError` recovery.
+- [x] Add test coverage for `tpt-erp-entity` (zero direct unit tests today) and especially
+       `PostgresRepository`, which has no test coverage anywhere in the repo.
+- [x] Wire `from_jwt_claims` tenant resolution (`crates/tpt-erp-tenant/src/identification.rs:96-107`,
+       exported + unit-tested) into the actual Axum extractor/middleware chain — it's
+       advertised in `TenantSlug`'s doc comment as one of three resolution strategies but
+       `web.rs::resolve_slug` only wires two (`Host` subdomain, raw header).
+- [x] Add dependency security scanning to CI (`cargo audit` and/or `cargo deny`) plus a
+       Dependabot config — none exist today for a financial ERP platform.
+- [x] Replace the default Helm secret placeholder (`deploy/values.yaml:80`,
+       `password: "change-me-in-prod"`) with either a required-override guard (fail chart
+       install if unset) or a generated random default.
+
+### Medium
+- [ ] Document or harden the `format!`-interpolated table/column identifiers in
+       `crates/tpt-erp-entity/src/postgres_repo.rs` (multiple call sites). Currently sourced
+       only from compile-time macro attributes (not user input) so not exploitable today,
+       but it's inconsistent with the parameterized value-binding used right next to it and
+       would become a real injection vector if identifiers were ever made dynamic.
+- [x] Give `RepositoryError::Backend`/`EventStoreError::Backend` a typed source chain
+       instead of collapsing all backend errors to an opaque `String` — callers currently
+       can't distinguish "connection lost" from "constraint violation".
+- [x] Replace the ad-hoc `String` error in `examples/plugins/qc/src/lib.rs:56` with a typed
+       error variant, for consistency with the `thiserror`-based error handling used
+       everywhere else in the codebase.
+- [x] Make the `msrv` CI job run `cargo test`, not just `cargo build`, so MSRV compatibility
+       of the test suite itself is actually verified.
+- [x] Make `release.yml`'s publish job explicitly `needs:` the main lint-and-test job so a
+       tag can't be published without CI having passed on that commit.
+- [ ] Refresh `docs/architecture.md`'s crate status table — it currently lists only 5 crates
+       and marks `tpt-erp-wasm` as "Scaffold," which is stale relative to the CHANGELOG and
+       the rest of the docs describing it as feature-complete.
+
+### Low
+- [ ] Spot-check the Phase 5 "Platform Hardening" checklist against current code rather than
+       trusting the checkmarks — this review found live bugs in code adjacent to what Phase
+       5 claims to have fixed (see the ledger-mirror item above), and the checklist is
+       self-certified rather than externally reviewed.
+- [ ] Add a top-level index (README section or `examples/README.md`) explaining what each of
+       the 12+ crates under `examples/` does and how to run it — currently only discoverable
+       by browsing `Cargo.toml` workspace members.
+
+### Adoption & Developer Experience
+- [ ] Add a `docker-compose.yml` (Postgres + NATS + Redis + `examples/server`) as a
+       single-command local trial path. Today the only way to stand up the full stack
+       (DB + bus + cache + server) is the Helm chart, which requires a Kubernetes 1.29+
+       cluster — there is no local/single-node alternative.
+- [ ] Add `.env.example` / `config.example.toml` collecting the env vars currently scattered
+       across docs and source (`TPT_BIND`, `RUST_LOG`, `TPT_BUS_URL`, `TPT_CACHE_URL`, etc.),
+       one example per module where relevant (POS, OMS, TMS, ...).
+- [x] Add a seed/demo-data generator exposed as a runnable command (e.g. `tpt seed-demo` or
+       a `justfile`/`Makefile` target) that populates sample customers/products/orders across
+       the six verticals. Today's only demo data is the internal `gl::journal::demo()`
+       helper (`examples/gl/src/journal.rs:500`), used by tests/`examples/flow` but not
+       exposed to users trying the platform.
+- [ ] Write an end-to-end "run it and hit the API" quickstart in the README/docs: start the
+       stack via docker-compose, seed demo data, walk through a `curl` request against a real
+       endpoint. The only such workflow that exists today lives in
+       `examples/server/tests/integration.rs`, not in user-facing docs.
+- [ ] Add a `justfile`/`Makefile` (or `cargo-xtask`) wrapping common commands — run a given
+       vertical, seed demo data, build/validate a plugin, bring up the full local stack — to
+       cut down the "which of 12 example crates do I run, and how" friction for newcomers.
+
+### Innovative additions (forward-looking, not defects)
+- [ ] Cross-vertical event-bus visualizer built on `examples/flow` — a real-time view of
+       OMS -> WMS -> TMS -> GL events flowing over `tpt-erp-bus`, useful both as a sales demo
+       and as a debugging tool for the event-sourced architecture.
+- [ ] Outbox pattern (or CDC) for the ledger's Postgres mirror instead of the current
+       fire-and-forget spawn, giving durable at-least-once delivery from the event store to
+       read replicas — pairs naturally with the Critical data-loss fix above.
+- [ ] `cargo-deny`-driven SBOM generation + supply-chain attestation as part of
+       `release.yml`, aimed at enterprise ERP buyers who require it during procurement.
+- [ ] A one-click hosted trial (Gitpod/Codespaces devcontainer config) so evaluators can try
+       the platform with zero local setup.

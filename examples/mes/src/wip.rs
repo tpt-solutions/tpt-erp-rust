@@ -269,7 +269,7 @@ mod tests {
         item.advance(WipState::Assembled).unwrap();
         item.advance(WipState::Inspected).unwrap();
         let crit = lookup_code("ELE-001").unwrap().finding(None, "open");
-        assert_eq!(recommended_disposition(&[crit.clone()]), Disposition::Scrap);
+        assert_eq!(recommended_disposition(std::slice::from_ref(&crit)), Disposition::Scrap);
         item.record_defect(crit);
         item.scrap().unwrap();
         assert!(item.is_terminal());

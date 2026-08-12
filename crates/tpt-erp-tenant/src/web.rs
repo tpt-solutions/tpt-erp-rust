@@ -1,18 +1,19 @@
 //! Axum integration for tenant resolution (enabled by the `axum` feature).
 //!
 //! - [`TenantContext`] is an Axum extractor: any handler parameter `TenantContext` will
-//!   be populated from the request, resolving the tenant from a `Host` subdomain or the
-//!   `X-Tenant-Id` header (in that priority order).
+//!   be populated from the request, resolving the tenant from a `Host` subdomain, the
+//!   `X-Tenant-Id` header, or a `Bearer` JWT's `tenant` claim (in that priority order).
 //! - [`tenant_context_middleware`] is an optional middleware that pre-resolves the tenant
 //!   and stashes it in request extensions; this is also where a live database connection
 //!   would issue `SET LOCAL app.tenant_id = '<uuid>'` per transaction.
 
-use crate::identification::{TenantSlug, from_header, from_subdomain};
+use crate::identification::{TenantSlug, from_header, from_jwt_claims, from_subdomain};
+use base64::Engine;
 use crate::{TenantContext, TenantResolutionError};
 use axum::extract::FromRequestParts;
 use axum::extract::Request;
 use axum::http::HeaderMap;
-use axum::http::header::HOST;
+use axum::http::header::{AUTHORIZATION, HOST};
 use axum::http::request::Parts;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -47,17 +48,44 @@ impl IntoResponse for TenantResolutionError {
     }
 }
 
-/// Resolve a tenant slug from the request headers (Host subdomain first, then header).
+/// Resolve a tenant slug from a `Bearer` JWT's claims (the `tenant` field). This is the
+/// third advertised resolution strategy (after Host subdomain and the explicit header):
+/// decode the URL-safe base64 payload segment and read the `tenant` claim. Signature
+/// verification is intentionally out of scope here — this only extracts the tenant the
+/// caller asserts, which the downstream `AuthPolicy`/`RBAC` layer must still authorize.
+fn resolve_slug_from_jwt(headers: &HeaderMap) -> Option<TenantSlug> {
+    let auth = headers.get(AUTHORIZATION)?.to_str().ok()?;
+    let token = auth
+        .strip_prefix("Bearer ")
+        .or_else(|| auth.strip_prefix("bearer "))?;
+    // JWT structure is `header.payload.signature`; we only need the payload (segment 1).
+    let payload = token.split('.').nth(1)?;
+    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload)
+        .ok()?;
+    let claims = String::from_utf8(decoded).ok()?;
+    match from_jwt_claims(&claims, "tenant") {
+        Ok(Some(slug)) => Some(slug),
+        _ => None,
+    }
+}
+
+/// Resolve a tenant slug from the request headers. Tries, in priority order: the `Host`
+/// subdomain, the explicit `X-Tenant-Id` header, then a `Bearer` JWT's `tenant` claim.
 fn resolve_slug(headers: &HeaderMap) -> Option<TenantSlug> {
     if let Some(host) = headers.get(HOST).and_then(|v| v.to_str().ok())
         && let Some(slug) = from_subdomain(host)
     {
         return Some(slug);
     }
-    headers
+    if let Some(slug) = headers
         .get(TENANT_HEADER)
         .and_then(|v| v.to_str().ok())
         .and_then(from_header)
+    {
+        return Some(slug);
+    }
+    resolve_slug_from_jwt(headers)
 }
 
 /// Middleware that resolves the tenant once and records it in request extensions.
@@ -108,10 +136,11 @@ impl TenantDb {
     {
         let mut conn = self.conn.lock().await;
         let mut tx = sqlx::Acquire::begin(&mut *conn).await?;
-        // Wire RLS for real: this is the command that used to be built and discarded.
-        // `SET LOCAL` only lives for the transaction, so every query below runs on the
-        // same connection and is transparently scoped by Postgres Row-Level Security.
-        sqlx::query("SET LOCAL app.tenant_id = $1")
+        // Wire RLS for real via the single consolidated, bind-safe query
+        // (`set_config('app.tenant_id', $1, true)`). `SET LOCAL` only lives for the
+        // transaction, so every query below runs on the same connection and is
+        // transparently scoped by Postgres Row-Level Security.
+        sqlx::query(crate::rls::SET_TENANT_QUERY)
             .bind(&self.tenant)
             .execute(&mut *tx)
             .await?;
@@ -209,6 +238,31 @@ mod tests {
                 Request::builder()
                     .uri("/whoami")
                     .header(HOST, "globex.example.com")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let text = String::from_utf8(body.to_vec()).unwrap();
+        assert!(text.starts_with("globex:"));
+    }
+
+    #[tokio::test]
+    async fn extractor_resolves_from_jwt_claim() {
+        // A minimal unverified JWT: header.payload.signature where payload decodes to
+        // {"tenant":"globex"}. Signature is bogus; we only read the claim.
+        let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(r#"{"tenant":"globex"}"#);
+        let token = format!("eyJhbGciOiJub25lIn0.{payload}.bogus");
+        let resp = app()
+            .oneshot(
+                Request::builder()
+                    .uri("/whoami")
+                    .header(AUTHORIZATION, format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
             )

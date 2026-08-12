@@ -73,6 +73,42 @@ jobs:
       - name: Run ignored tests
         run: cargo test --workspace --all-targets -- --ignored --test-threads=1
 
+  # The actual production backends (Postgres event store, Postgres repository, Postgres
+  # RLS) live behind non-default cargo features. This job compiles, lints, and tests them
+  # so the `postgres`/`sqlx` code paths can't silently rot (they weren't built by the
+  # default job before).
+  postgres-backends:
+    name: postgres feature backends
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown, wasm32-wasip1
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.5
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Clippy (postgres features)
+        run: cargo clippy -p tpt-erp-ledger -p tpt-erp-entity -p tpt-erp-tenant \
+          --features "tpt-erp-ledger/postgres,tpt-erp-entity/postgres,tpt-erp-tenant/sqlx" \
+          --all-targets -- -D warnings
+
+      - name: Test (postgres features)
+        run: cargo test -p tpt-erp-ledger -p tpt-erp-entity -p tpt-erp-tenant \
+          --features "tpt-erp-ledger/postgres,tpt-erp-entity/postgres,tpt-erp-tenant/sqlx"
+
   # Pin to the declared MSRV so we notice if a dependency or language feature
   # silently raises the floor (rust-version in the root Cargo.toml).
   msrv:
@@ -104,3 +140,27 @@ jobs:
 
       - name: Build (MSRV)
         run: cargo build --workspace --all-targets
+
+      - name: Test (MSRV)
+        run: cargo test --workspace --all-targets
+
+  # Dependency / supply-chain security scanning for a financial ERP platform.
+  security:
+    name: cargo audit / cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo audit (RUSTSEC advisories)
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: cargo deny (licenses / bans / advisories / sources)
+        uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          command: check
+          arguments: --all-features

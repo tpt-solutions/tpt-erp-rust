@@ -196,11 +196,9 @@ mod tests {
 
     #[test]
     fn expected_cash_only_counts_cash_tenders() {
-        let tenders = vec![
-            tender(TenderKind::Cash, 50),
+        let tenders = [tender(TenderKind::Cash, 50),
             tender(TenderKind::Card, 30),
-            tender(TenderKind::GiftCard, 20),
-        ];
+            tender(TenderKind::GiftCard, 20)];
         let expected: Money<Usd> = tenders
             .iter()
             .filter(|t| t.kind.is_cash())

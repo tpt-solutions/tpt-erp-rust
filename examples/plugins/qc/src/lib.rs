@@ -12,49 +12,69 @@
 wit_bindgen::generate!({ world: "plugin" });
 
 use serde_json::Value;
+use thiserror::Error;
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+/// Typed error for the QC/telemetry plugin's logic. The WIT `plugin` world requires the
+/// exported `run` to return `result<string, string>`, so this is converted to a `String`
+/// at the boundary (see [`Guest::run`]); using a typed error internally keeps the
+/// failure modes consistent with the rest of the codebase's `thiserror`-based handling.
+#[derive(Debug, Error)]
+pub enum QcError {
+    #[error("invalid JSON input: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("unknown qc/telemetry type: {0}")]
+    UnknownType(String),
+    #[error("malformed telemetry frame")]
+    MalformedTelemetry,
+}
 
 struct Component;
 
 impl Guest for Component {
     fn run(input: String) -> Result<String, String> {
         let v: Value = serde_json::from_str(&input).map_err(|e| e.to_string())?;
-        let kind = v["type"].as_str().unwrap_or("");
-        match kind {
-            "qc" => {
-                let nominal = v["nominal"].as_f64().unwrap_or(0.0);
-                let measured = v["measured"].as_f64().unwrap_or(0.0);
-                let tol = v["tol"].as_f64().unwrap_or(0.0);
-                let deviation = (measured - nominal).abs();
-                let pass = deviation <= tol;
-                let out = serde_json::json!({
-                    "pass": pass,
-                    "deviation": deviation,
-                    "nominal": nominal,
-                    "measured": measured,
-                    "tolerance": tol,
-                });
-                Ok(out.to_string())
-            }
-            "telemetry" => {
-                // Parse a raw machine line into structured form.
-                let raw = v["raw"].as_str().unwrap_or("");
-                let parts: Vec<&str> = raw.split(',').collect();
-                let parsed = if parts.len() >= 3 {
-                    serde_json::json!({
-                        "machine": parts[0],
-                        "signal": parts[1],
-                        "value": parts[2].parse::<f64>().unwrap_or(0.0),
-                    })
-                } else {
-                    serde_json::json!({ "error": "malformed telemetry frame" })
-                };
-                Ok(parsed.to_string())
-            }
-            other => Err(format!("unknown qc/telemetry type: {other}")),
+        handle(&v).map_err(|e| e.to_string())
+    }
+}
+
+/// Pure, host-I/O-free evaluation of a single QC/telemetry request.
+fn handle(v: &Value) -> Result<String, QcError> {
+    let kind = v["type"].as_str().unwrap_or("");
+    match kind {
+        "qc" => {
+            let nominal = v["nominal"].as_f64().unwrap_or(0.0);
+            let measured = v["measured"].as_f64().unwrap_or(0.0);
+            let tol = v["tol"].as_f64().unwrap_or(0.0);
+            let deviation = (measured - nominal).abs();
+            let pass = deviation <= tol;
+            let out = serde_json::json!({
+                "pass": pass,
+                "deviation": deviation,
+                "nominal": nominal,
+                "measured": measured,
+                "tolerance": tol,
+            });
+            Ok(out.to_string())
         }
+        "telemetry" => {
+            // Parse a raw machine line into structured form.
+            let raw = v["raw"].as_str().unwrap_or("");
+            let parts: Vec<&str> = raw.split(',').collect();
+            let parsed = if parts.len() >= 3 {
+                serde_json::json!({
+                    "machine": parts[0],
+                    "signal": parts[1],
+                    "value": parts[2].parse::<f64>().unwrap_or(0.0),
+                })
+            } else {
+                return Err(QcError::MalformedTelemetry);
+            };
+            Ok(parsed.to_string())
+        }
+        other => Err(QcError::UnknownType(other.to_string())),
     }
 }
 

@@ -27,7 +27,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::TenantContext;
-use crate::rls::set_tenant_command;
+use crate::rls::SET_TENANT_QUERY;
 
 /// Errors raised by the Postgres tenant middleware / extractor.
 #[derive(Debug, thiserror::Error)]
@@ -119,10 +119,10 @@ pub async fn tenant_db_middleware(
             if sqlx::query("BEGIN").execute(&mut *conn).await.is_err() {
                 return TenantDbError::ScopingFailed.into_response();
             }
-            let cmd = set_tenant_command(&ctx.id);
-            if sqlx::query(&cmd).execute(&mut *conn).await.is_err() {
-                return TenantDbError::ScopingFailed.into_response();
-            }
+            let _ = sqlx::query(SET_TENANT_QUERY)
+                .bind(ctx.id.as_str())
+                .execute(&mut *conn)
+                .await;
             req.extensions_mut().insert(TenantConnection::new(conn));
             // Keep our own handle to the scoped connection so we can finalize the
             // transaction after the handler runs (the `Request` is consumed by `next.run`).

@@ -178,14 +178,14 @@ impl PluginRuntime {
         wasm: &[u8],
         ctx: Box<dyn HostContext>,
     ) -> Result<PluginHandle, RuntimeError> {
-        if let Some(cap) = self.config.max_module_bytes {
-            if wasm.len() > cap {
-                return Err(RuntimeError::InvalidPlugin(format!(
-                    "module is {} bytes, exceeding the {} byte limit",
-                    wasm.len(),
-                    cap
-                )));
-            }
+        if let Some(cap) = self.config.max_module_bytes
+            && wasm.len() > cap
+        {
+            return Err(RuntimeError::InvalidPlugin(format!(
+                "module is {} bytes, exceeding the {} byte limit",
+                wasm.len(),
+                cap
+            )));
         }
         let component = Component::new(&self.engine, wasm)
             .map_err(|e| RuntimeError::InvalidPlugin(e.to_string()))?;
@@ -285,14 +285,14 @@ impl PluginHandle {
     /// finish on the old code; new calls use the new component. No host
     /// restart required.
     pub fn swap_module(&mut self, wasm: &[u8]) -> Result<(), RuntimeError> {
-        if let Some(cap) = self.runtime.config.max_module_bytes {
-            if wasm.len() > cap {
-                return Err(RuntimeError::InvalidPlugin(format!(
-                    "module is {} bytes, exceeding the {} byte limit",
-                    wasm.len(),
-                    cap
-                )));
-            }
+        if let Some(cap) = self.runtime.config.max_module_bytes
+            && wasm.len() > cap
+        {
+            return Err(RuntimeError::InvalidPlugin(format!(
+                "module is {} bytes, exceeding the {} byte limit",
+                wasm.len(),
+                cap
+            )));
         }
         let component = Component::new(&self.runtime.engine, wasm)
             .map_err(|e| RuntimeError::InvalidPlugin(e.to_string()))?;

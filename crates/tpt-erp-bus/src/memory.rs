@@ -5,7 +5,7 @@
 //! service required — ideal for tests and single-node local runs.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 
 use tokio::sync::mpsc;
 
@@ -46,7 +46,7 @@ impl EventBus for InMemoryBus {
         // Snapshot the matching senders under the lock, then drop the lock *before* awaiting
         // so the future stays `Send` and a slow subscriber applies backpressure.
         let targets: Vec<mpsc::Sender<Message>> = {
-            let inner = self.inner.lock().unwrap();
+            let inner = self.inner.lock();
             inner
                 .subs
                 .iter()
@@ -68,7 +68,6 @@ impl EventBus for InMemoryBus {
         let (tx, rx) = mpsc::channel(64);
         self.inner
             .lock()
-            .unwrap()
             .subs
             .entry(subject.to_string())
             .or_default()

@@ -21,10 +21,11 @@ chrono = { workspace = true }
 thiserror = { workspace = true }
 sqlx = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
+tracing = { version = "0.1", optional = true }
 
 [features]
 # Postgres-backed `EventStore` (mirrored, RLS-scoped per tenant).
-postgres = ["dep:sqlx", "dep:tokio"]
+postgres = ["dep:sqlx", "dep:tokio", "dep:tracing"]
 
 [dev-dependencies]
 rust_decimal = { workspace = true }

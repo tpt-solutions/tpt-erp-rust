@@ -136,7 +136,7 @@ pub struct PosApp {
     pub sync: Arc<PosSync>,
     /// Registry of completed sales, keyed by transaction id, so they can be returned
     /// or exchanged (carries full line + tender detail for discount/tax-correct refunds).
-    pub sales: Arc<std::sync::Mutex<HashMap<String, SaleRecord>>>,
+    pub sales: Arc<parking_lot::Mutex<HashMap<String, SaleRecord>>>,
     /// Loyalty engine that accrues and redeems per-customer balances.
     pub loyalty: Arc<LoyaltyEngine>,
 }
@@ -153,7 +153,7 @@ impl PosApp {
                 "pos",
             ))),
             sync: Arc::new(PosSync::new(tenant, terminal)),
-            sales: Arc::new(std::sync::Mutex::new(HashMap::new())),
+            sales: Arc::new(parking_lot::Mutex::new(HashMap::new())),
             loyalty: Arc::new(LoyaltyEngine::new()),
         }
     }
@@ -338,7 +338,7 @@ impl PosApp {
         txn.advance(TxnStatus::Captured)?;
 
         // Persist the sale so it can later be returned or exchanged.
-        self.sales.lock().unwrap().insert(
+        self.sales.lock().insert(
             txn.id.as_str(),
             SaleRecord {
                 id: txn.id.as_str(),
@@ -397,7 +397,6 @@ impl PosApp {
         let record = self
             .sales
             .lock()
-            .unwrap()
             .get(txn_id)
             .cloned()
             .ok_or_else(|| PosError::NoSuchSale(txn_id.to_string()))?;
@@ -440,7 +439,6 @@ impl PosApp {
         let record = self
             .sales
             .lock()
-            .unwrap()
             .get(original_txn_id)
             .cloned()
             .ok_or_else(|| PosError::NoSuchSale(original_txn_id.to_string()))?;

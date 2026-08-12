@@ -46,7 +46,7 @@ impl<E: EntityTable> PostgresRepository<E> {
         sqlx::query(&sql)
             .execute(&self.pool)
             .await
-            .map_err(|e| RepositoryError::Backend(e.to_string()))?;
+            .map_err(|e| RepositoryError::Backend(Box::new(e)))?;
         Ok(())
     }
 
@@ -60,12 +60,12 @@ impl<E: EntityTable> PostgresRepository<E> {
         ))
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Backend(e.to_string()))?;
+        .map_err(|e| RepositoryError::Backend(Box::new(e)))?;
         let mut out = Vec::with_capacity(rows.len());
         for (_, data) in rows {
             out.push(
                 serde_json::from_value(data)
-                    .map_err(|e| RepositoryError::Backend(e.to_string()))?,
+                    .map_err(|e| RepositoryError::Backend(Box::new(e)))?,
             );
         }
         Ok(out)
@@ -112,10 +112,10 @@ where
         .bind(id.to_string())
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Backend(e.to_string()))?;
+        .map_err(|e| RepositoryError::Backend(Box::new(e)))?;
         match data {
             Some(v) => Ok(Some(
-                serde_json::from_value(v).map_err(|e| RepositoryError::Backend(e.to_string()))?,
+                serde_json::from_value(v).map_err(|e| RepositoryError::Backend(Box::new(e)))?,
             )),
             None => Ok(None),
         }
@@ -124,7 +124,7 @@ where
     async fn create(&self, entity: E) -> Result<E, RepositoryError> {
         entity.validate()?;
         let data =
-            serde_json::to_value(&entity).map_err(|e| RepositoryError::Backend(e.to_string()))?;
+            serde_json::to_value(&entity).map_err(|e| RepositoryError::Backend(Box::new(e)))?;
         let res = sqlx::query(&format!(
             "INSERT INTO {} (id, data) VALUES ($1, $2) ON CONFLICT ({}) DO NOTHING",
             E::table_name(),
@@ -134,7 +134,7 @@ where
         .bind(data)
         .execute(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Backend(e.to_string()))?;
+        .map_err(|e| RepositoryError::Backend(Box::new(e)))?;
         if res.rows_affected() == 0 {
             return Err(RepositoryError::Conflict(format!(
                 "entity {} already exists",
@@ -147,7 +147,7 @@ where
     async fn replace(&self, id: E::Id, entity: E) -> Result<Option<E>, RepositoryError> {
         entity.validate()?;
         let data =
-            serde_json::to_value(&entity).map_err(|e| RepositoryError::Backend(e.to_string()))?;
+            serde_json::to_value(&entity).map_err(|e| RepositoryError::Backend(Box::new(e)))?;
         let res = sqlx::query(&format!(
             "UPDATE {} SET data = $2, updated_at = now() WHERE {} = $1",
             E::table_name(),
@@ -157,7 +157,7 @@ where
         .bind(data)
         .execute(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Backend(e.to_string()))?;
+        .map_err(|e| RepositoryError::Backend(Box::new(e)))?;
         if res.rows_affected() == 0 {
             Ok(None)
         } else {
@@ -174,7 +174,102 @@ where
         .bind(id.to_string())
         .execute(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Backend(e.to_string()))?;
+        .map_err(|e| RepositoryError::Backend(Box::new(e)))?;
         Ok(res.rows_affected() > 0)
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "postgres")]
+mod tests {
+    use super::*;
+    use crate::entity::{ApplyFilter, EntityTable, Filter};
+    use crate::repository::Repository;
+    use crate::validation::{Validatable, ValidationError};
+    use serde::{Deserialize, Serialize};
+    use sqlx::postgres::PgPool;
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    struct TestUser {
+        id: u32,
+        name: String,
+    }
+
+    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+    struct TestUserFilter {
+        name: Option<String>,
+    }
+
+    impl EntityTable for TestUser {
+        fn table_name() -> &'static str {
+            "test_users_pg"
+        }
+        type Id = u32;
+        type Filter = TestUserFilter;
+        fn id(&self) -> u32 {
+            self.id
+        }
+    }
+
+    impl Validatable for TestUser {
+        fn validate(&self) -> Result<(), ValidationError> {
+            Ok(())
+        }
+    }
+
+    impl Filter for TestUserFilter {}
+
+    impl ApplyFilter<TestUser> for TestUserFilter {
+        fn matches(&self, e: &TestUser) -> bool {
+            match &self.name {
+                Some(n) => e.name == *n,
+                None => true,
+            }
+        }
+    }
+
+    async fn pool() -> Option<PgPool> {
+        let url = std::env::var("TPT_TEST_POSTGRES_URL").ok()?;
+        PgPool::connect(&url).await.ok()
+    }
+
+    #[tokio::test]
+    async fn postgres_crud_roundtrip() {
+        let Some(pool) = pool().await else {
+            eprintln!("skipping: TPT_TEST_POSTGRES_URL not set / unreachable");
+            return;
+        };
+        // Start from a clean table so the test is repeatable.
+        sqlx::query("DROP TABLE IF EXISTS test_users_pg")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let repo = PostgresRepository::<TestUser>::new(pool.clone());
+        repo.create_table().await.unwrap();
+
+        let stored = repo
+            .create(TestUser {
+                id: 7,
+                name: "bob".into(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(stored.name, "bob");
+
+        // Re-creating the same id is a conflict (ON CONFLICT DO NOTHING).
+        assert!(matches!(
+            repo.create(TestUser {
+                id: 7,
+                name: "bob2".into(),
+            })
+            .await,
+            Err(RepositoryError::Conflict(_))
+        ));
+
+        assert_eq!(repo.get(7).await.unwrap().unwrap().name, "bob");
+        assert!(repo.get(8).await.unwrap().is_none());
+
+        assert!(repo.delete(7).await.unwrap());
+        assert!(!repo.delete(7).await.unwrap());
     }
 }

@@ -11,6 +11,18 @@ use crate::TenantId;
 /// The GUC (global user config) key used to carry the active tenant for the session.
 pub const TENANT_GUC: &str = "app.tenant_id";
 
+/// Parameterized query that scopes the current transaction to `tenant_id` via Postgres's
+/// `set_config(setting, value, is_local)`. This is the single source of truth for the
+/// "set the active tenant" command: both the axum [`crate::web::TenantDb`] and the
+/// [`crate::db::tenant_db_middleware`] execute exactly this query (with `.bind(tenant)`).
+///
+/// We deliberately use `set_config(.., true)` rather than a raw `SET LOCAL app.tenant_id =
+/// $1`: the `SET`/`SET LOCAL` syntax does not reliably accept bind parameters across
+/// drivers and protocol versions, whereas `set_config` is an ordinary function call and
+/// works with bound parameters everywhere. The value is bound (never interpolated), so
+/// there is no SQL-injection surface.
+pub const SET_TENANT_QUERY: &str = "SELECT set_config('app.tenant_id', $1, true)";
+
 /// Quote a SQL identifier safely: wrap in double quotes and escape any embedded double
 /// quotes by doubling them, so table/column names cannot break out of the identifier context.
 fn quote_ident(name: &str) -> String {

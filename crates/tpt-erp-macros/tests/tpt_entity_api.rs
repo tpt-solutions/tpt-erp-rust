@@ -163,8 +163,11 @@ fn traits_and_filter_compile_and_work() {
     assert!(p.audit_fields().is_some());
 
     // the generated filter matches by equality
-    let mut f = <Product as EntityTable>::Filter::default();
-    f.name = Some("Sprocket".into());
+    type Filter = <Product as EntityTable>::Filter;
+    let mut f = Filter {
+        name: Some("Sprocket".into()),
+        ..Default::default()
+    };
     assert!(tpt_erp_entity::ApplyFilter::<Product>::matches(&f, &p));
     f.name = Some("Nope".into());
     assert!(!tpt_erp_entity::ApplyFilter::<Product>::matches(&f, &p));

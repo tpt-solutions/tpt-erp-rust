@@ -8,7 +8,7 @@
 
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 
 /// A single machine telemetry sample.
 #[derive(Debug, Clone, PartialEq)]
@@ -85,7 +85,7 @@ impl InMemoryTelemetryStore {
 
 impl TelemetryStore for InMemoryTelemetryStore {
     fn record(&self, sample: &TelemetrySample) {
-        let mut states = self.states.lock().unwrap();
+        let mut states = self.states.lock();
         let s = states
             .entry(match sample {
                 TelemetrySample::Cycle { machine, .. } => machine.clone(),
@@ -106,7 +106,7 @@ impl TelemetryStore for InMemoryTelemetryStore {
     }
 
     fn state(&self, machine: &str) -> Option<MachineState> {
-        self.states.lock().unwrap().get(machine).copied()
+        self.states.lock().get(machine).copied()
     }
 
     fn oee(&self, machine: &str, config: MachineConfig) -> Option<crate::oee::Oee> {

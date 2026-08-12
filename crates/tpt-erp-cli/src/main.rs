@@ -7,8 +7,10 @@
 //! - `tpt plugin build <path>` — compile + componentize a plugin.
 //! - `tpt plugin validate <wasm>` — confirm it satisfies the contract.
 //! - `tpt plugin run <wasm> <input>` — execute a plugin's `run`.
+//! - `tpt seed-demo` — generate sample customers/products/orders for trying the platform.
 
 mod plugin;
+mod seed;
 
 use clap::{Parser, Subcommand};
 
@@ -23,11 +25,14 @@ struct Cli {
 enum Command {
     /// Work with TPT ERP WebAssembly plugins.
     Plugin(plugin::PluginCommand),
+    /// Generate a small sample dataset for evaluating the platform.
+    SeedDemo(seed::SeedCommand),
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Plugin(cmd) => plugin::run(cmd),
+        Command::SeedDemo(cmd) => seed::run(cmd),
     }
 }

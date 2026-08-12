@@ -21,7 +21,8 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use parking_lot::Mutex;
 use tpt_erp_ledger::{
     BalanceProjection, Event, EventStore, InMemoryEventStore,
     double_entry::{
@@ -61,7 +62,7 @@ impl AppState {
         tenant: &TenantIdKey,
         tx: &Transaction<Usd>,
     ) -> Result<u64, tpt_erp_ledger::EventStoreError> {
-        let mut ledgers = self.ledgers.lock().expect("ledger lock poisoned");
+        let mut ledgers = self.ledgers.lock();
         let entry = ledgers.entry(*tenant).or_insert_with(|| TenantLedger {
             journal: JournalId::new(),
             store: InMemoryEventStore::default(),
@@ -79,7 +80,7 @@ impl AppState {
         // Collect events while holding the lock; drop the guard before `.await` so the
         // future stays `Send` (required by axum handlers).
         let events: Vec<LedgerEvent<Usd>> = {
-            let ledgers = self.ledgers.lock().expect("ledger lock poisoned");
+            let ledgers = self.ledgers.lock();
             let Some(entry) = ledgers.get(tenant) else {
                 return HashMap::new();
             };
@@ -102,7 +103,7 @@ impl AppState {
 
     /// The raw journal payloads for a tenant.
     fn journal(&self, tenant: &TenantIdKey) -> Vec<Value> {
-        let ledgers = self.ledgers.lock().expect("ledger lock poisoned");
+        let ledgers = self.ledgers.lock();
         let Some(entry) = ledgers.get(tenant) else {
             return Vec::new();
         };

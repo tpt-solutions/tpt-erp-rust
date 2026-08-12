@@ -112,7 +112,7 @@ impl<C: Currency> AnomalyProjector<C> {
                 if z.abs() > self.z_threshold {
                     self.anomalies.push(Anomaly::AmountOutlier {
                         tx,
-                        amount: Money::<C>::new(Decimal::try_from(value as i64).unwrap_or(Decimal::ZERO)),
+                        amount: Money::<C>::new(Decimal::from(value as i64)),
                         z_score: z,
                     });
                 }

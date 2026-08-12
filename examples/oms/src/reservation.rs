@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -177,7 +177,7 @@ impl ReservationEngine {
     pub async fn receive(&self, sku: Id<Sku>, qty: i64) -> Result<(), ReservationError> {
         let idx = Self::shard_index(&sku);
         {
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
             shard
                 .store
                 .append(Event::new(sku, "received", &ReserveEvent::Received(qty))?);
@@ -232,7 +232,7 @@ impl ReservationEngine {
 
         // Compute the reservable quantity without holding the shard across appends.
         let reserved_qty = {
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
             let available = shard.states.entry(sku).or_default().available();
             (available as u32).min(qty)
         };
@@ -240,7 +240,7 @@ impl ReservationEngine {
         if reserved_qty > 0 {
             let hold = Id::new();
             {
-                let mut shard = self.shards[idx].lock().unwrap();
+                let mut shard = self.shards[idx].lock();
                 shard.store.append(Event::new(
                     sku,
                     "hold",
@@ -260,7 +260,7 @@ impl ReservationEngine {
             let bo_qty = qty - reserved_qty;
             let bo = Id::new();
             {
-                let mut shard = self.shards[idx].lock().unwrap();
+                let mut shard = self.shards[idx].lock();
                 shard.store.append(Event::new(
                     sku,
                     "backorder_placed",
@@ -276,7 +276,7 @@ impl ReservationEngine {
         }
 
         if let Some((hold, q)) = reserved {
-            self.expiry_index.lock().unwrap().insert(hold, expires);
+            self.expiry_index.lock().insert(hold, expires);
             if let Some(cache) = &self.cache {
                 cache
                     .put(
@@ -300,8 +300,8 @@ impl ReservationEngine {
                     .await;
             }
         }
-        if let Some((bo, q)) = backorder {
-            if let Some(bus) = &self.bus {
+        if let Some((bo, q)) = backorder
+            && let Some(bus) = &self.bus {
                 let _ = bus
                     .publish(
                         "oms.backorder_placed",
@@ -311,7 +311,6 @@ impl ReservationEngine {
                     )
                     .await;
             }
-        }
 
         Ok((reserved, backorder))
     }
@@ -328,7 +327,7 @@ impl ReservationEngine {
         loop {
             // Pick one satisfiable backorder, then release the lock before recursing.
             let picked = {
-                let shard = self.shards[idx].lock().unwrap();
+                let shard = self.shards[idx].lock();
                 let st = match shard.states.get(&sku) {
                     Some(s) => s,
                     None => break,
@@ -345,7 +344,7 @@ impl ReservationEngine {
             let hold = Id::new();
             let far_future = Utc::now() + chrono::Duration::days(365 * 100);
             {
-                let mut shard = self.shards[idx].lock().unwrap();
+                let mut shard = self.shards[idx].lock();
                 let st = shard.states.get_mut(&sku).expect("checked above");
                 st.backorders.remove(&bo);
                 st.holds.insert(hold, qty);
@@ -382,7 +381,7 @@ impl ReservationEngine {
     ) -> Result<Vec<(Id<Sku>, Id<Hold>, u32)>, ReservationError> {
         let mut result = Vec::new();
         for shard in &self.shards {
-            let skus: Vec<Id<Sku>> = shard.lock().unwrap().states.keys().copied().collect();
+            let skus: Vec<Id<Sku>> = shard.lock().states.keys().copied().collect();
             for sku in skus {
                 for (hold, qty) in self.fulfill_backorders_for(sku).await? {
                     result.push((sku, hold, qty));
@@ -398,7 +397,7 @@ impl ReservationEngine {
     pub async fn return_stock(&self, sku: Id<Sku>, qty: i64) -> Result<(), ReservationError> {
         let idx = Self::shard_index(&sku);
         {
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
             shard
                 .store
                 .append(Event::new(sku, "return", &ReserveEvent::Return(qty))?);
@@ -439,7 +438,7 @@ impl ReservationEngine {
             + chrono::Duration::from_std(ttl).unwrap_or_else(|_| chrono::Duration::days(365 * 100));
 
         {
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
             let available = shard.states.entry(sku).or_default().available();
             if available < qty as i64 {
                 return Err(ReservationError::InsufficientStock {
@@ -463,7 +462,7 @@ impl ReservationEngine {
 
         // Mirror the hold into the cache with its TTL — the cache TTL is the
         // authority for auto-release.
-        self.expiry_index.lock().unwrap().insert(hold, expires);
+        self.expiry_index.lock().insert(hold, expires);
         if let Some(cache) = &self.cache {
             cache
                 .put(
@@ -494,16 +493,15 @@ impl ReservationEngine {
     pub async fn confirm(&self, sku: Id<Sku>, hold: Id<Hold>) -> Result<(), ReservationError> {
         let idx = Self::shard_index(&sku);
         let existed = {
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
             let captured = {
                 let st = shard
                     .states
                     .get_mut(&sku)
                     .ok_or(ReservationError::UnknownHold(hold))?;
-                st.holds.remove(&hold).map(|qty| {
+                st.holds.remove(&hold).inspect(|&qty| {
                     st.committed += qty as i64;
                     st.expires_at.remove(&hold);
-                    qty
                 })
             };
             if captured.is_some() {
@@ -538,14 +536,14 @@ impl ReservationEngine {
     /// purged lazily via [`ReservationEngine::sweep_expired`]).
     pub fn available(&self, sku: Id<Sku>) -> i64 {
         let idx = Self::shard_index(&sku);
-        let shard = self.shards[idx].lock().unwrap();
+        let shard = self.shards[idx].lock();
         shard.states.get(&sku).map(|s| s.available()).unwrap_or(0)
     }
 
     /// Total received stock for `sku` (for the promo plugin's stock-aware read).
     pub fn on_hand(&self, sku: Id<Sku>) -> i64 {
         let idx = Self::shard_index(&sku);
-        let shard = self.shards[idx].lock().unwrap();
+        let shard = self.shards[idx].lock();
         shard.states.get(&sku).map(|s| s.on_hand).unwrap_or(0)
     }
 
@@ -567,7 +565,7 @@ impl ReservationEngine {
                 .is_some();
             return !present;
         }
-        let exp = self.expiry_index.lock().unwrap().get(&hold).copied();
+        let exp = self.expiry_index.lock().get(&hold).copied();
         match exp {
             Some(e) => Utc::now() >= e,
             None => true,
@@ -575,7 +573,7 @@ impl ReservationEngine {
     }
 
     async fn release_cache_and_index(&self, hold: Id<Hold>) {
-        self.expiry_index.lock().unwrap().remove(&hold);
+        self.expiry_index.lock().remove(&hold);
         if let Some(cache) = &self.cache {
             let _ = cache
                 .invalidate(&self.tenant, "holds", &hold.as_str())
@@ -592,7 +590,7 @@ impl ReservationEngine {
     ) -> Result<bool, ReservationError> {
         let idx = Self::shard_index(&sku);
         let existed = {
-            let mut shard = self.shards[idx].lock().unwrap();
+            let mut shard = self.shards[idx].lock();
             let captured = {
                 let st = match shard.states.get_mut(&sku) {
                     Some(s) => s,
@@ -624,7 +622,7 @@ impl ReservationEngine {
     pub async fn sweep_expired(&self) -> Result<u64, ReservationError> {
         let mut candidates = Vec::new();
         for shard in &self.shards {
-            let s = shard.lock().unwrap();
+            let s = shard.lock();
             for (sku, st) in &s.states {
                 for h in st.holds.keys() {
                     candidates.push((*sku, *h));
@@ -633,12 +631,11 @@ impl ReservationEngine {
         }
         let mut released = 0u64;
         for (sku, h) in candidates {
-            if self.is_expired(h).await {
-                if self.release_internal(sku, h).await? {
+            if self.is_expired(h).await
+                && self.release_internal(sku, h).await? {
                     released += 1;
                     self.released_jobs.fetch_add(1, Ordering::Relaxed);
                 }
-            }
         }
         Ok(released)
     }
@@ -651,7 +648,7 @@ impl ReservationEngine {
     ) -> Result<HashMap<Id<Sku>, SkuState>, ReservationError> {
         let mut all: Vec<StoredEvent<Id<Sku>>> = Vec::new();
         for shard in &self.shards {
-            let s = shard.lock().unwrap();
+            let s = shard.lock();
             all.extend(s.store.log().iter().cloned());
         }
         let events: Vec<(Id<Sku>, ReserveEvent)> = all
@@ -785,7 +782,6 @@ mod tests {
         let tasks: Vec<_> = (0..100)
             .map(|_| {
                 let eng = eng.clone();
-                let s = s;
                 tokio::spawn(
                     async move { eng.reserve(s, 1, Duration::from_secs(60)).await.is_ok() },
                 )

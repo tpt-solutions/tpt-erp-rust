@@ -97,7 +97,7 @@ pub fn returned_merchandise(
                 .filter(|l| l.item == r.item)
                 .map(|l| l.unit_price * Decimal::from(r.qty))
                 .fold(Money::zero(), |a, b| a + b);
-            sum = sum + matched;
+            sum += matched;
         }
         sum
     };

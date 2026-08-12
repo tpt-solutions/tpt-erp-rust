@@ -4,7 +4,7 @@
 //! tests; they also serve as the default backend for local development.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -58,7 +58,7 @@ impl SessionStore for InMemoryCache {
             expires_at,
             last_seen: now,
         };
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock();
         inner
             .tenant_sessions
             .entry(tenant)
@@ -69,7 +69,7 @@ impl SessionStore for InMemoryCache {
     }
 
     async fn get(&self, id: &str) -> Result<Option<Session>, CacheError> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock();
         match inner.sessions.get(id) {
             Some(s) if s.is_expired(Utc::now()) => {
                 inner.sessions.remove(id);
@@ -81,7 +81,7 @@ impl SessionStore for InMemoryCache {
     }
 
     async fn touch(&self, id: &str) -> Result<(), CacheError> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock();
         if let Some(s) = inner.sessions.get_mut(id) {
             let now = Utc::now();
             s.last_seen = now;
@@ -97,17 +97,17 @@ impl SessionStore for InMemoryCache {
     }
 
     async fn delete(&self, id: &str) -> Result<(), CacheError> {
-        let mut inner = self.inner.lock().unwrap();
-        if let Some(s) = inner.sessions.remove(id) {
-            if let Some(ids) = inner.tenant_sessions.get_mut(&s.tenant) {
-                ids.retain(|x| x != id);
-            }
+        let mut inner = self.inner.lock();
+        if let Some(s) = inner.sessions.remove(id)
+            && let Some(ids) = inner.tenant_sessions.get_mut(&s.tenant)
+        {
+            ids.retain(|x| x != id);
         }
         Ok(())
     }
 
     async fn delete_for_tenant(&self, tenant: &TenantId) -> Result<(), CacheError> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock();
         if let Some(ids) = inner.tenant_sessions.remove(tenant) {
             for id in ids {
                 inner.sessions.remove(&id);
@@ -125,7 +125,7 @@ impl ReadModelCache for InMemoryCache {
         model: &str,
         key: &str,
     ) -> Result<Option<Value>, CacheError> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock();
         let k = (*tenant, model.to_string(), key.to_string());
         match inner.models.get(&k) {
             Some((v, Some(exp))) if *exp <= Utc::now() => {
@@ -147,7 +147,7 @@ impl ReadModelCache for InMemoryCache {
     ) -> Result<(), CacheError> {
         let expires_at =
             ttl.map(|d| Utc::now() + chrono::Duration::from_std(d).unwrap_or_default());
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock();
         inner.models.insert(
             (*tenant, model.to_string(), key.to_string()),
             (value, expires_at),
@@ -161,7 +161,7 @@ impl ReadModelCache for InMemoryCache {
         model: &str,
         key: &str,
     ) -> Result<(), CacheError> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock();
         inner
             .models
             .remove(&(*tenant, model.to_string(), key.to_string()));
@@ -169,7 +169,7 @@ impl ReadModelCache for InMemoryCache {
     }
 
     async fn invalidate_model(&self, tenant: &TenantId, model: &str) -> Result<(), CacheError> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock();
         inner
             .models
             .retain(|(t, m, _), _| t != tenant || m != model);
@@ -214,7 +214,7 @@ mod tests {
 
         let s = sessions
             .create(
-                a.clone(),
+                a,
                 serde_json::Value::Null,
                 Some(Duration::from_secs(60)),
             )

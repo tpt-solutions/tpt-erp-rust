@@ -1361,6 +1361,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "futures",
+ "parking_lot",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -1380,6 +1381,7 @@ version = "0.1.0"
 dependencies = [
  "gl",
  "leptos",
+ "parking_lot",
  "rust_decimal",
  "serde",
  "tpt-erp-ledger",
@@ -2200,6 +2202,7 @@ dependencies = [
 name = "mes"
 version = "0.1.0"
 dependencies = [
+ "parking_lot",
  "rayon",
  "rust_decimal",
  "serde",
@@ -2431,6 +2434,7 @@ dependencies = [
  "chrono",
  "futures",
  "gl",
+ "parking_lot",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -2614,6 +2618,7 @@ dependencies = [
  "axum",
  "chrono",
  "futures",
+ "parking_lot",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -3532,6 +3537,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "metrics",
+ "parking_lot",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -4445,6 +4451,7 @@ dependencies = [
  "async-nats",
  "async-trait",
  "futures",
+ "parking_lot",
  "thiserror 2.0.20",
  "tokio",
 ]
@@ -4455,6 +4462,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "parking_lot",
  "redis",
  "serde",
  "serde_json",
@@ -4483,6 +4491,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "parking_lot",
  "serde",
  "serde_json",
  "sqlx",
@@ -4514,6 +4523,7 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "tpt-erp-primitives",
+ "tracing",
 ]
 
 [[package]]
@@ -4565,6 +4575,7 @@ name = "tpt-erp-tenant"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64",
  "serde",
  "serde_json",
  "sqlx",
@@ -4580,6 +4591,7 @@ name = "tpt-erp-wasm"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
+ "parking_lot",
  "rand",
  "serde",
  "serde_json",
@@ -5577,6 +5589,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "futures",
+ "parking_lot",
  "rumqttc",
  "rust_decimal",
  "serde",

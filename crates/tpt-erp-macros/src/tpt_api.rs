@@ -124,7 +124,7 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
                     ::tpt_erp_entity::RepositoryError::NotFound => #error_name::NotFound,
                     ::tpt_erp_entity::RepositoryError::Validation(v) => #error_name::BadRequest(v.to_string()),
                     ::tpt_erp_entity::RepositoryError::Conflict(m) => #error_name::Conflict(m),
-                    ::tpt_erp_entity::RepositoryError::Backend(m) => #error_name::Internal(m),
+                    ::tpt_erp_entity::RepositoryError::Backend(m) => #error_name::Internal(m.to_string()),
                 }
             }
         }

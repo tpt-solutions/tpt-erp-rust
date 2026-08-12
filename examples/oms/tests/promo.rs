@@ -76,6 +76,7 @@ async fn promo_plugin_reads_stock_and_discounts() {
     let mut plugin = rt
         .load(
             "promo",
+            demo_tenant(),
             &wasm,
             Box::new(Ctx {
                 engine: engine.clone(),

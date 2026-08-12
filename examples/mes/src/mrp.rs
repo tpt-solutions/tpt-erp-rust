@@ -7,7 +7,7 @@
 
 use rayon::prelude::*;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use tpt_erp_primitives::{Entity, Id};
 
 /// A manufactured or purchased part.
@@ -61,7 +61,7 @@ impl MrpEngine {
     pub fn explode(root: &BomNode, demand: u64) -> MrpPlan {
         let acc: Mutex<HashMap<Id<Part>, RawReq>> = Mutex::new(HashMap::new());
         Self::explode_node(root, demand, &acc);
-        let acc = acc.into_inner().unwrap();
+        let acc = acc.into_inner();
 
         // Gather each part's own lead time (and on-hand) from the BOM.
         let info: HashMap<Id<Part>, (u32, u32)> = Self::part_info(root);
@@ -95,7 +95,7 @@ impl MrpEngine {
     fn explode_node(node: &BomNode, multiplier: u64, acc: &Mutex<HashMap<Id<Part>, RawReq>>) {
         let gross = u64::from(node.qty_per) * multiplier;
         {
-            let mut m = acc.lock().unwrap();
+            let mut m = acc.lock();
             m.entry(node.part).or_default().gross += gross;
         }
         // Each child subtree is independent given `gross`, so explode in parallel.

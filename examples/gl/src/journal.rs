@@ -14,7 +14,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::hash::Hasher;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use tpt_erp_cache::{CacheError, ReadModelCache};
 use tpt_erp_ledger::{
     AccountId, DoubleEntry, DoubleEntryError, EntrySide, Event, EventStore, InMemoryEventStore,
@@ -175,12 +175,12 @@ where
 
     /// Set the book (historical) rate for an account, in reporting currency per unit of `C`.
     pub fn set_book_rate(&self, account: AccountId, rate: rust_decimal::Decimal) {
-        self.book_rates.lock().unwrap().insert(account, rate);
+        self.book_rates.lock().insert(account, rate);
     }
 
     /// The book rate for an account, if set.
     pub fn book_rate(&self, account: AccountId) -> Option<rust_decimal::Decimal> {
-        self.book_rates.lock().unwrap().get(&account).copied()
+        self.book_rates.lock().get(&account).copied()
     }
 
     /// Record the close status of an accounting period. A `Closed` or `Locked` period
@@ -188,7 +188,6 @@ where
     pub fn set_period_status(&self, period: &str, status: PeriodStatus) {
         self.period_status
             .lock()
-            .unwrap()
             .insert(period.to_string(), status);
     }
 
@@ -276,13 +275,13 @@ where
 
         let mut guards: Vec<_> = accounts
             .iter()
-            .map(|a| self.shards[Self::shard_index(a)].lock().unwrap())
+            .map(|a| self.shards[Self::shard_index(a)].lock())
             .collect();
 
         // Reject postings into a closed/locked period. This is the enforcement that
         // period-close actually means something: a `Closed`/`Locked` period cannot
         // receive new legs, so its reports remain final.
-        match self.period_status.lock().unwrap().get(period) {
+        match self.period_status.lock().get(period) {
             Some(PeriodStatus::Closed) | Some(PeriodStatus::Locked) => {
                 return Err(JournalError::PeriodClosed {
                     period: period.to_string(),
@@ -362,14 +361,14 @@ where
     /// Read the cached/derived balance for an account.
     pub fn balance_of(&self, account: AccountId) -> AccountBalance<C> {
         let idx = Self::shard_index(&account);
-        let shard = self.shards[idx].lock().unwrap();
+        let shard = self.shards[idx].lock();
         shard.balances.get(&account).copied().unwrap_or_default()
     }
 
     /// Current event-log version for an account (used by optimistic-concurrency clients).
     pub fn version(&self, account: AccountId) -> u64 {
         let idx = Self::shard_index(&account);
-        let shard = self.shards[idx].lock().unwrap();
+        let shard = self.shards[idx].lock();
         shard.store.version(&account)
     }
 
@@ -379,7 +378,7 @@ where
     pub async fn rebuild_read_models(&self) -> Result<JournalProjection<C>, JournalError> {
         let mut legs: Vec<PostedLeg<C>> = Vec::new();
         for shard in &self.shards {
-            let s = shard.lock().unwrap();
+            let s = shard.lock();
             for ev in s.store.log() {
                 legs.push(serde_json::from_value(ev.payload.clone())?);
             }
@@ -410,7 +409,7 @@ where
     ) -> Result<JournalProjection<C>, JournalError> {
         let mut legs: Vec<PostedLeg<C>> = Vec::new();
         for shard in &self.shards {
-            let s = shard.lock().unwrap();
+            let s = shard.lock();
             for ev in s.store.log() {
                 let leg: PostedLeg<C> = serde_json::from_value(ev.payload.clone())?;
                 if leg.period == period {

@@ -1,7 +1,7 @@
 //! The storage abstraction the generated Axum router talks to.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -19,8 +19,13 @@ pub enum RepositoryError {
     Validation(#[from] crate::validation::ValidationError),
     #[error("conflict: {0}")]
     Conflict(String),
+    /// A backend (e.g. Postgres) error.
+    ///
+    /// The original error is preserved as the [`std::error::Error::source`], so callers
+    /// can downcast to distinguish failure modes (e.g. connection loss from a constraint
+    /// violation) rather than only seeing a flattened string.
     #[error("backend error: {0}")]
-    Backend(String),
+    Backend(#[source] Box<dyn std::error::Error + Send + Sync>),
 }
 
 /// Maximum number of rows a single page may request, regardless of the `per_page` query
@@ -126,7 +131,7 @@ where
         pagination: Pagination,
         filter: E::Filter,
     ) -> Result<Page<E>, RepositoryError> {
-        let guard = self.store.lock().expect("in-memory repo lock poisoned");
+        let guard = self.store.lock();
         let mut matched: Vec<E> = guard
             .values()
             .filter(|e| filter.matches(e))
@@ -153,14 +158,13 @@ where
         Ok(self
             .store
             .lock()
-            .expect("in-memory repo lock poisoned")
             .get(&id)
             .cloned())
     }
 
     async fn create(&self, entity: E) -> Result<E, RepositoryError> {
         entity.validate()?;
-        let mut guard = self.store.lock().expect("in-memory repo lock poisoned");
+        let mut guard = self.store.lock();
         match guard.entry(entity.id()) {
             std::collections::hash_map::Entry::Occupied(_) => Err(RepositoryError::Conflict(
                 format!("entity {} already exists", entity.id()),
@@ -174,7 +178,7 @@ where
 
     async fn replace(&self, id: E::Id, entity: E) -> Result<Option<E>, RepositoryError> {
         entity.validate()?;
-        let mut guard = self.store.lock().expect("in-memory repo lock poisoned");
+        let mut guard = self.store.lock();
         match guard.entry(id) {
             std::collections::hash_map::Entry::Occupied(mut slot) => {
                 slot.insert(entity.clone());
@@ -188,8 +192,182 @@ where
         Ok(self
             .store
             .lock()
-            .expect("in-memory repo lock poisoned")
             .remove(&id)
             .is_some())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entity::{ApplyFilter, EntityTable, Filter};
+    use crate::validation::{Validatable, ValidationError};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    struct TestUser {
+        id: u32,
+        name: String,
+    }
+
+    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+    struct TestUserFilter {
+        name: Option<String>,
+    }
+
+    impl EntityTable for TestUser {
+        fn table_name() -> &'static str {
+            "test_users"
+        }
+        type Id = u32;
+        type Filter = TestUserFilter;
+        fn id(&self) -> u32 {
+            self.id
+        }
+    }
+
+    impl Validatable for TestUser {
+        fn validate(&self) -> Result<(), ValidationError> {
+            if self.name.is_empty() {
+                return Err(ValidationError::Required("name"));
+            }
+            Ok(())
+        }
+    }
+
+    impl Filter for TestUserFilter {}
+
+    impl ApplyFilter<TestUser> for TestUserFilter {
+        fn matches(&self, e: &TestUser) -> bool {
+            match &self.name {
+                Some(n) => e.name == *n,
+                None => true,
+            }
+        }
+    }
+
+    #[test]
+    fn pagination_clamps_and_offsets() {
+        // per_page below 1 clamps to 1; above MAX_PER_PAGE clamps to MAX_PER_PAGE.
+        let p = Pagination {
+            page: 2,
+            per_page: 0,
+        };
+        assert_eq!(p.limit(), 1);
+        assert_eq!(p.offset(), 1);
+
+        let p = Pagination {
+            page: 1,
+            per_page: MAX_PER_PAGE + 500,
+        };
+        assert_eq!(p.limit(), MAX_PER_PAGE as u64);
+
+        // page is 1-based: page 2 means offset of exactly one page width.
+        let p = Pagination {
+            page: 3,
+            per_page: 10,
+        };
+        assert_eq!(p.offset(), 20);
+    }
+
+    #[tokio::test]
+    async fn in_memory_crud_roundtrip() {
+        let repo = InMemoryRepository::<TestUser>::new();
+        let u = TestUser {
+            id: 1,
+            name: "alice".into(),
+        };
+        let stored = repo.create(u).await.unwrap();
+        assert_eq!(stored.name, "alice");
+
+        // Re-creating the same id is a conflict.
+        let dup = repo
+            .create(TestUser {
+                id: 1,
+                name: "alice2".into(),
+            })
+            .await;
+        assert!(matches!(dup, Err(RepositoryError::Conflict(_))));
+
+        // get by id.
+        assert_eq!(repo.get(1).await.unwrap().unwrap().name, "alice");
+        assert!(repo.get(2).await.unwrap().is_none());
+
+        // replace.
+        let replaced = repo
+            .replace(
+                1,
+                TestUser {
+                    id: 1,
+                    name: "alice-renamed".into(),
+                },
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(replaced.name, "alice-renamed");
+        assert!(repo.replace(99, TestUser { id: 99, name: "x".into() }).await.unwrap().is_none());
+
+        // delete.
+        assert!(repo.delete(1).await.unwrap());
+        assert!(!repo.delete(1).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn in_memory_validation_rejects_invalid() {
+        let repo = InMemoryRepository::<TestUser>::new();
+        let res = repo
+            .create(TestUser {
+                id: 1,
+                name: String::new(),
+            })
+            .await;
+        assert!(matches!(res, Err(RepositoryError::Validation(_))));
+    }
+
+    #[tokio::test]
+    async fn in_memory_list_filters_and_paginates() {
+        let repo = InMemoryRepository::<TestUser>::new();
+        for i in 0..10 {
+            repo.create(TestUser {
+                id: i,
+                name: if i % 2 == 0 { "even".into() } else { "odd".into() },
+            })
+            .await
+            .unwrap();
+        }
+
+        // Filter to "even" names -> 5 rows (ids 0,2,4,6,8), sorted by id.
+        let page = repo
+            .list(
+                Pagination {
+                    page: 1,
+                    per_page: 100,
+                },
+                TestUserFilter {
+                    name: Some("even".into()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(page.total, 5);
+        assert_eq!(page.items.len(), 5);
+
+        // Pagination: page size 2 over the 5 "even" rows.
+        let p1 = repo
+            .list(
+                Pagination {
+                    page: 1,
+                    per_page: 2,
+                },
+                TestUserFilter {
+                    name: Some("even".into()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(p1.items.len(), 2);
+        assert_eq!(p1.items[0].id, 0);
+        assert_eq!(p1.items[1].id, 2);
     }
 }

@@ -6,7 +6,8 @@
 //! balance / balance sheet are built by the same CQRS reporting read models — proving the
 //! UI and the API share one source of truth.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use parking_lot::Mutex;
 
 use leptos::prelude::*;
 use rust_decimal::Decimal;
@@ -39,7 +40,7 @@ type UiState = Arc<Mutex<GlState>>;
 fn JournalPanel(state: RwSignal<UiState>) -> impl IntoView {
     let post_sale = move |_| {
         state.update(|arc| {
-            let g = arc.lock().unwrap();
+            let g = arc.lock();
             let _ = g.0.post_transaction_sync(
                 vec![
                     leg(g.1.cash, EntrySide::Debit, 100),
@@ -52,7 +53,7 @@ fn JournalPanel(state: RwSignal<UiState>) -> impl IntoView {
     };
     let post_expense = move |_| {
         state.update(|arc| {
-            let g = arc.lock().unwrap();
+            let g = arc.lock();
             let _ = g.0.post_transaction_sync(
                 vec![
                     leg(g.1.cogs, EntrySide::Debit, 40),
@@ -65,7 +66,7 @@ fn JournalPanel(state: RwSignal<UiState>) -> impl IntoView {
     };
     let close_books = move |_| {
         state.update(|arc| {
-            let g = arc.lock().unwrap();
+            let g = arc.lock();
             let entries = g.0.generate_closing_entries(g.1.retained_earnings);
             let _ =
                 g.0.post_transaction_sync(entries, "2026-01", "period close");
@@ -92,7 +93,7 @@ fn JournalPanel(state: RwSignal<UiState>) -> impl IntoView {
 fn TrialBalancePanel(state: RwSignal<UiState>) -> impl IntoView {
     let tb = Signal::derive(move || {
         let s = state.get();
-        let (eng, _) = &*s.lock().unwrap();
+        let (eng, _) = &*s.lock();
         trial_balance_now(eng)
     });
 
@@ -158,7 +159,7 @@ fn TrialBalancePanel(state: RwSignal<UiState>) -> impl IntoView {
 fn BalanceSheetPanel(state: RwSignal<UiState>) -> impl IntoView {
     let bs = Signal::derive(move || {
         let s = state.get();
-        let (eng, _) = &*s.lock().unwrap();
+        let (eng, _) = &*s.lock();
         balance_sheet_now(eng)
     });
 

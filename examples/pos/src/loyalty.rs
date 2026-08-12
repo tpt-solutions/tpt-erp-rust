@@ -9,7 +9,7 @@
 
 use rust_decimal::Decimal;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use tpt_erp_primitives::{Id, Money, Usd};
 
 use crate::txn::PosCustomer;
@@ -60,7 +60,6 @@ impl LoyaltyEngine {
     pub fn balance(&self, customer: Id<PosCustomer>) -> LoyaltyBalance {
         self.balances
             .lock()
-            .unwrap()
             .get(&customer)
             .cloned()
             .unwrap_or_default()
@@ -69,7 +68,7 @@ impl LoyaltyEngine {
     /// Accrue points for a sale: `points += subtotal * earn_rate`. Returns the new
     /// balance. This *writes* the balance — it persists across calls.
     pub fn earn(&self, customer: Id<PosCustomer>, subtotal: Money<Usd>) -> LoyaltyBalance {
-        let mut map = self.balances.lock().unwrap();
+        let mut map = self.balances.lock();
         let b = map.entry(customer).or_default();
         b.points += (subtotal.amount() * self.earn_rate).round_dp(4);
         b.clone()
@@ -83,7 +82,7 @@ impl LoyaltyEngine {
         customer: Id<PosCustomer>,
         amount: Money<Usd>,
     ) -> Result<LoyaltyBalance, LoyaltyError> {
-        let mut map = self.balances.lock().unwrap();
+        let mut map = self.balances.lock();
         let b = map.entry(customer).or_default();
         let have = b.points;
         if have < amount.amount() {

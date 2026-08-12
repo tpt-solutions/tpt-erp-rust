@@ -8,7 +8,7 @@
 //! is published per successful sync, and the last-synced sequence is pinned into
 //! `tpt-erp-cache` as a **checkpoint** so a crash mid-sync resumes from where it left off.
 
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -122,16 +122,16 @@ impl PosSync {
     /// the sale is held in the pending set until [`PosSync::sync_to`] runs.
     pub fn record_offline(&self, sale: SaleEvent) -> Result<(), SyncError> {
         {
-            let mut store = self.local.lock().unwrap();
+            let mut store = self.local.lock();
             store.append(Event::new(self.terminal, "sale-recorded", &sale)?);
         }
-        self.pending.lock().unwrap().push(sale);
+        self.pending.lock().push(sale);
         Ok(())
     }
 
     /// Number of sales waiting to be reconciled.
     pub fn pending_count(&self) -> usize {
-        self.pending.lock().unwrap().len()
+        self.pending.lock().len()
     }
 
     /// The number of successful sync runs so far.
@@ -143,7 +143,7 @@ impl PosSync {
     /// and record the checkpoint in the cache. Sales that fail centrally abort the run so
     /// they stay pending (safe retry).
     pub async fn sync_to(&self, central: &dyn CentralStore) -> Result<u64, SyncError> {
-        let pending = self.pending.lock().unwrap().clone();
+        let pending = self.pending.lock().clone();
         let mut synced = 0u64;
         for sale in &pending {
             central.apply_sale(sale).await?;
@@ -152,7 +152,7 @@ impl PosSync {
 
         // All pending applied; clear and publish.
         if synced > 0 {
-            self.pending.lock().unwrap().clear();
+            self.pending.lock().clear();
             self.write_checkpoint(synced).await;
 
             if let Some(bus) = &self.bus {
@@ -185,7 +185,7 @@ impl PosSync {
 
     /// Number of events in the local log (proves durability/replayability).
     pub fn local_log_len(&self) -> usize {
-        self.local.lock().unwrap().log().len()
+        self.local.lock().log().len()
     }
 }
 
@@ -198,14 +198,14 @@ pub struct InMemoryCentral {
 impl InMemoryCentral {
     /// All sales applied so far, keyed by transaction id.
     pub fn sales(&self) -> Vec<SaleEvent> {
-        self.applied.lock().unwrap().values().cloned().collect()
+        self.applied.lock().values().cloned().collect()
     }
 }
 
 #[async_trait::async_trait]
 impl CentralStore for InMemoryCentral {
     async fn apply_sale(&self, sale: &SaleEvent) -> Result<(), SyncError> {
-        let mut map = self.applied.lock().unwrap();
+        let mut map = self.applied.lock();
         map.entry(sale.txn_id.clone())
             .or_insert_with(|| sale.clone());
         Ok(())

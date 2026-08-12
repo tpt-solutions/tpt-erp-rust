@@ -8,7 +8,7 @@
 //! plugin a tenant runs; [`BillingReport`] is the operator-facing rollup.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use tpt_erp_tenant::TenantId;
 
 /// Accumulated usage for a single tenant.
@@ -37,7 +37,7 @@ impl UsageMeter {
 
     /// Attribute one plugin call of `fuel` fuel to `tenant`.
     pub fn record_call(&self, tenant: TenantId, fuel: u64) {
-        let mut map = self.per_tenant.lock().unwrap();
+        let mut map = self.per_tenant.lock();
         let r = map.entry(tenant).or_default();
         r.calls += 1;
         r.fuel_consumed += fuel;
@@ -47,7 +47,6 @@ impl UsageMeter {
     pub fn for_tenant(&self, tenant: TenantId) -> UsageRecord {
         self.per_tenant
             .lock()
-            .unwrap()
             .get(&tenant)
             .copied()
             .unwrap_or_default()
@@ -56,7 +55,7 @@ impl UsageMeter {
     /// A snapshot of every tenant's usage, sorted by tenant id for stable output.
     pub fn report(&self) -> BillingReport {
         let mut rows: Vec<(TenantId, UsageRecord)> =
-            self.per_tenant.lock().unwrap().iter().map(|(k, v)| (*k, *v)).collect();
+            self.per_tenant.lock().iter().map(|(k, v)| (*k, *v)).collect();
         rows.sort_by_key(|(k, _)| k.as_str().to_string());
         let total_calls = rows.iter().map(|(_, r)| r.calls).sum();
         let total_fuel = rows.iter().map(|(_, r)| r.fuel_consumed).sum();

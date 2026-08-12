@@ -18,6 +18,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
+base64 = { workspace = true }
 
 # Optional web integration: Axum extractor + resolver middleware.
 axum = { workspace = true, optional = true }
