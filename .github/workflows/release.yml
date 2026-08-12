@@ -68,7 +68,7 @@ jobs:
           output-file: tpt-erp-rust.sbom.cdx.json
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tpt-erp-rust-sbom
           path: tpt-erp-rust.sbom.cdx.json
