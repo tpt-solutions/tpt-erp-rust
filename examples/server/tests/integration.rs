@@ -148,3 +148,63 @@ async fn request_without_tenant_is_rejected() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn jwt_auth_populates_principal_and_gates_tenant() {
+    // A server started with a JWT secret enforces real authentication: the tenant is
+    // taken from the *verified* token claim, never from a spoofable header.
+    let app = server::app_with_auth(
+        std::sync::Arc::new(server::AppState::default()),
+        "integration-secret".into(),
+    );
+
+    let config = tpt_erp_tenant::auth::JwtConfig::new("integration-secret");
+    let token = config
+        .issue(&tpt_erp_tenant::auth::Claims::new(
+            "user-1",
+            "acme",
+            vec!["staff".into()],
+        ))
+        .unwrap();
+
+    // A request with a valid token for tenant `acme` succeeds and isolates data.
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/transactions")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .header(header::HOST, "globex.example.com") // spoofed header must be ignored
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(tx_body(
+                    &Uuid::new_v4().to_string(),
+                    &Uuid::new_v4().to_string(),
+                    "100.00",
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // A request with no token is rejected (401), proving tenant selection is gated.
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/transactions")
+                .header(header::HOST, "acme.example.com")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(tx_body(
+                    &Uuid::new_v4().to_string(),
+                    &Uuid::new_v4().to_string(),
+                    "1.00",
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}

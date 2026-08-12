@@ -4,7 +4,6 @@
 //! subscriber whose subject matches (exact or `>`-prefix). No external
 //! service required — ideal for tests and single-node local runs.
 
-use std::collections::HashMap;
 use parking_lot::Mutex;
 
 use tokio::sync::mpsc;
@@ -23,7 +22,10 @@ fn subject_matches(sub: &str, published: &str) -> bool {
 
 #[derive(Default)]
 struct Inner {
-    subs: HashMap<String, Vec<mpsc::Sender<Message>>>,
+    /// Active subscriptions. Each entry carries a stable id so a dead (dropped) subscriber
+    /// can be pruned after a failed send without disturbing live ones.
+    subs: Vec<(String, u64, mpsc::Sender<Message>)>,
+    next_id: u64,
 }
 
 /// In-memory [`EventBus`] + [`JobQueue`].
@@ -43,35 +45,40 @@ impl InMemoryBus {
 impl EventBus for InMemoryBus {
     async fn publish(&self, subject: &str, payload: &[u8]) -> Result<(), BusError> {
         let msg = Message::without_ack(subject, payload.to_vec());
-        // Snapshot the matching senders under the lock, then drop the lock *before* awaiting
+        // Snapshot the matching subscribers under the lock, then drop the lock *before* awaiting
         // so the future stays `Send` and a slow subscriber applies backpressure.
-        let targets: Vec<mpsc::Sender<Message>> = {
+        let targets: Vec<(u64, mpsc::Sender<Message>)> = {
             let inner = self.inner.lock();
             inner
                 .subs
                 .iter()
-                .filter(|(sub, _)| subject_matches(sub, subject))
-                .flat_map(|(_, senders)| senders.iter().cloned())
+                .filter(|(sub, _, _)| subject_matches(sub, subject))
+                .map(|(_, id, tx)| (*id, tx.clone()))
                 .collect()
         };
-        for tx in targets {
-            // Apply backpressure instead of silently dropping: if a subscriber's buffer is
-            // full we wait (and propagate a closed-channel error) rather than lose the event.
-            tx.send(msg.clone())
-                .await
-                .map_err(|_| BusError::Backend("subscriber channel closed".to_string()))?;
+        // Apply backpressure for live subscribers, but a dropped (closed) subscriber must NOT
+        // block delivery to the rest: remember its id and prune it instead of erroring.
+        let mut dead: Vec<u64> = Vec::new();
+        for (id, tx) in targets {
+            if tx.send(msg.clone()).await.is_err() {
+                dead.push(id);
+            }
+        }
+        if !dead.is_empty() {
+            let mut inner = self.inner.lock();
+            inner.subs.retain(|(_, id, _)| !dead.contains(id));
         }
         Ok(())
     }
 
     async fn subscribe(&self, subject: &str) -> Result<MessageStream, BusError> {
         let (tx, rx) = mpsc::channel(64);
-        self.inner
-            .lock()
-            .subs
-            .entry(subject.to_string())
-            .or_default()
-            .push(tx);
+        {
+            let mut inner = self.inner.lock();
+            inner.next_id += 1;
+            let id = inner.next_id;
+            inner.subs.push((subject.to_string(), id, tx));
+        }
         // Bridge the receiver into a `futures::Stream` independent of the
         // tokio/futures Stream-impl coupling.
         let s =
@@ -122,5 +129,22 @@ mod tests {
         let m = worker.next().await.unwrap();
         assert_eq!(m.subject, "jobs.invoice");
         assert_eq!(m.payload, b"job-42");
+    }
+
+    #[tokio::test]
+    async fn dropped_subscriber_is_pruned_and_does_not_block_publish() {
+        let bus = InMemoryBus::new();
+        let mut sub = bus.subscribe("orders.created").await.unwrap();
+        // First publish reaches the live subscriber.
+        bus.publish("orders.created", b"evt-1").await.unwrap();
+        assert_eq!(sub.next().await.unwrap().payload, b"evt-1");
+        // Drop the subscriber; its channel closes.
+        drop(sub);
+        // Publishing again must still succeed (the dead sender is pruned, not errored).
+        assert!(bus.publish("orders.created", b"evt-2").await.is_ok());
+        // A fresh subscriber still receives subsequent events.
+        let mut sub2 = bus.subscribe("orders.created").await.unwrap();
+        bus.publish("orders.created", b"evt-3").await.unwrap();
+        assert_eq!(sub2.next().await.unwrap().payload, b"evt-3");
     }
 }

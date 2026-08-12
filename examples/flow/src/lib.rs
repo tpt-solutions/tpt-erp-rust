@@ -23,7 +23,7 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
-use tpt_erp_bus::{memory::InMemoryBus, EventBus};
+use tpt_erp_bus::{EventBus, memory::InMemoryBus};
 use tpt_erp_ledger::{EntrySide, LedgerEntry, TransactionId};
 use tpt_erp_primitives::{Id, Money, Usd};
 use tpt_erp_tenant::{TenantId, TenantSlug};
@@ -99,10 +99,20 @@ pub async fn run_flow(
     qty: u32,
     unit_cost: Money<Usd>,
 ) -> anyhow::Result<FlowReport> {
+    run_flow_on(tenant, qty, unit_cost, Arc::new(InMemoryBus::new())).await
+}
+
+/// Like [`run_flow`] but drives the flow over a caller-supplied [`EventBus`], so the
+/// emitted cross-vertical events (OMS → WMS → TMS → GL) can be observed or relayed by an
+/// external subscriber such as the `bus-visualizer` example.
+pub async fn run_flow_on(
+    tenant: TenantId,
+    qty: u32,
+    unit_cost: Money<Usd>,
+    bus: Arc<dyn EventBus>,
+) -> anyhow::Result<FlowReport> {
     let period = "2026-01";
     let as_of = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date");
-
-    let bus = Arc::new(InMemoryBus::new());
 
     // --- OMS vertical: reserve/commit the ordered stock into a hold. ---------------------
     let oms_res = Arc::new(ReservationEngine::new(tenant));

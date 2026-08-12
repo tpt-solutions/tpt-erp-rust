@@ -20,16 +20,22 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
 sqlx = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["time"] }
 tracing = { version = "0.1", optional = true }
+tpt-erp-bus = { workspace = true, optional = true }
+async-trait = { workspace = true, optional = true }
 
 [features]
 # Postgres-backed `EventStore` (mirrored, RLS-scoped per tenant).
 postgres = ["dep:sqlx", "dep:tokio", "dep:tracing"]
+# Outbox pattern: stage appended events in an outbox table and relay them to the
+# event bus with durable at-least-once delivery (requires `tpt-erp-bus`).
+outbox = ["dep:tpt-erp-bus", "dep:tokio", "dep:tracing", "dep:async-trait"]
 
 [dev-dependencies]
 rust_decimal = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+futures = "0.3"
 
 [lints]
 workspace = true

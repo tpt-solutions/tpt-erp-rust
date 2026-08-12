@@ -1,0 +1,25 @@
+{
+  "name": "TPT ERP RUST",
+  "image": "mcr.microsoft.com/devcontainers/rust:1.97",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "postCreateCommand": "rustup target add wasm32-unknown-unknown wasm32-wasip1 && cargo install cargo-watch --locked || true",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "rust-analyzer.cargo.features": "all"
+      }
+    }
+  },
+  "remoteEnv": {
+    "CARGO_TERM_COLOR": "always",
+    "RUSTFLAGS": "-D warnings"
+  }
+}

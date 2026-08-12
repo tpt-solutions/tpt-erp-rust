@@ -415,6 +415,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "bus-visualizer"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "flow",
+ "futures",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tpt-erp-bus",
+ "tpt-erp-observability",
+ "tpt-erp-primitives",
+ "tracing",
+]
+
+[[package]]
 name = "bytecheck"
 version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4481,6 +4499,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tpt-erp-tenant",
  "tpt-erp-wasm",
  "wit-component",
 ]
@@ -4515,13 +4534,16 @@ dependencies = [
 name = "tpt-erp-ledger"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
+ "futures",
  "rust_decimal",
  "serde",
  "serde_json",
  "sqlx",
  "thiserror 2.0.20",
  "tokio",
+ "tpt-erp-bus",
  "tpt-erp-primitives",
  "tracing",
 ]
@@ -4576,12 +4598,16 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64",
+ "chrono",
+ "hmac",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
  "thiserror 2.0.20",
  "tokio",
  "tower",
+ "tpt-erp-entity",
  "tpt-erp-primitives",
  "uuid",
 ]

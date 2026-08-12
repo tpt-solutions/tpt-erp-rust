@@ -27,6 +27,7 @@ members = [
     "examples/tms",
     "examples/tms-ui",
     "examples/flow",
+    "examples/bus-visualizer",
 ]
 
 exclude = [
@@ -56,6 +57,7 @@ tpt-erp-bus = { path = "crates/tpt-erp-bus", version = "0.1.0" }
 tpt-erp-cache = { path = "crates/tpt-erp-cache", version = "0.1.0" }
 tpt-erp-observability = { path = "crates/tpt-erp-observability", version = "0.1.0" }
 gl = { path = "examples/gl", version = "0.1.0" }
+flow = { path = "examples/flow", version = "0.1.0" }
 
 # Common third-party deps
 rust_decimal = { version = "1", features = ["serde", "maths"] }
@@ -79,6 +81,8 @@ rayon = "1"
 rumqttc = { version = "0.24", features = ["use-rustls"] }
 rand = "0.8"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
+hmac = "0.12"
+sha2 = "0.10"
 
 [workspace.lints.rust]
 unsafe_code = "warn"

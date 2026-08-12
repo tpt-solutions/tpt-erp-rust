@@ -1,0 +1,84 @@
+# Single-command local trial stack for TPT ERP RUST.
+#
+# Brings up Postgres + NATS + Redis + the reference ledger server so you can poke
+# the API without a Kubernetes cluster. The server runs its in-memory ledger today;
+# the Postgres/NATS/Redis services are the real backends the reference verticals
+# (and the Postgres-backed EventStore/Repository) connect to.
+#
+#   docker compose up --build
+#
+# Then authenticate and hit the API:
+#   export TOKEN=$(tpt token mint --tenant acme --roles admin)
+#   curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/balances
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tpt
+      POSTGRES_PASSWORD: tpt
+      POSTGRES_DB: tpt
+    ports:
+      - "5432:5432"
+    volumes:
+      - tpt-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tpt -d tpt"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  nats:
+    image: nats:2.10
+    command: ["--jetstream", "--http_port", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BIN: server
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      TPT_BIND: "0.0.0.0:3000"
+      # A real deployment MUST set this to a strong, secret value. The server
+      # enforces JWT (HS256) auth only when TPT_JWT_SECRET is present.
+      TPT_JWT_SECRET: "change-me-in-local-dev-only"
+      RUST_LOG: "info"
+      TPT_BUS_URL: "nats://nats:4222"
+      TPT_CACHE_URL: "redis://redis:6379"
+      TPT_DATABASE_URL: "postgres://tpt:tpt@postgres:5432/tpt"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  tpt-pg:

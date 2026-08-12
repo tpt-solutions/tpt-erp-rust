@@ -5,6 +5,9 @@
 //! - [`identification`] — extract the active tenant from subdomain / header / JWT claim.
 //! - [`rls`] — Postgres Row-Level Security policy templates and the `SET LOCAL`
 //!   command that scopes each transaction to a tenant.
+//! - [`auth`] — real JWT (HS256) verification + an Axum middleware that populates
+//!   [`tpt_erp_entity::auth::Principal`] from a verified credential and gates tenant
+//!   selection behind it.
 //!
 //! The Axum extractor/middleware that ties these to a request is added in a later step;
 //! the primitives here are pure and fully unit-tested.
@@ -34,6 +37,9 @@ pub mod rls;
 
 #[cfg(feature = "axum")]
 pub mod web;
+
+#[cfg(feature = "auth")]
+pub mod auth;
 
 #[cfg(feature = "sqlx")]
 pub mod db;

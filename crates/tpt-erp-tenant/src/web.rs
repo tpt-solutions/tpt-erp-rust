@@ -8,7 +8,6 @@
 //!   would issue `SET LOCAL app.tenant_id = '<uuid>'` per transaction.
 
 use crate::identification::{TenantSlug, from_header, from_jwt_claims, from_subdomain};
-use base64::Engine;
 use crate::{TenantContext, TenantResolutionError};
 use axum::extract::FromRequestParts;
 use axum::extract::Request;
@@ -17,6 +16,7 @@ use axum::http::header::{AUTHORIZATION, HOST};
 use axum::http::request::Parts;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use base64::Engine;
 
 /// Header used to pass an explicit tenant slug.
 pub const TENANT_HEADER: &str = "x-tenant-id";
@@ -50,9 +50,12 @@ impl IntoResponse for TenantResolutionError {
 
 /// Resolve a tenant slug from a `Bearer` JWT's claims (the `tenant` field). This is the
 /// third advertised resolution strategy (after Host subdomain and the explicit header):
-/// decode the URL-safe base64 payload segment and read the `tenant` claim. Signature
-/// verification is intentionally out of scope here — this only extracts the tenant the
-/// caller asserts, which the downstream `AuthPolicy`/`RBAC` layer must still authorize.
+/// decode the URL-safe base64 payload segment and read the `tenant` claim.
+///
+/// **Note:** this trusts the caller-supplied claim and performs no signature check. For
+/// production use, prefer [`crate::auth::auth_middleware`], which verifies the token and
+/// sets both `Principal` and `TenantContext` from the verified claims — tenant selection
+/// should never be gated on an unauthenticated, spoofable header.
 fn resolve_slug_from_jwt(headers: &HeaderMap) -> Option<TenantSlug> {
     let auth = headers.get(AUTHORIZATION)?.to_str().ok()?;
     let token = auth
@@ -255,8 +258,8 @@ mod tests {
     async fn extractor_resolves_from_jwt_claim() {
         // A minimal unverified JWT: header.payload.signature where payload decodes to
         // {"tenant":"globex"}. Signature is bogus; we only read the claim.
-        let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD
-            .encode(r#"{"tenant":"globex"}"#);
+        let payload =
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(r#"{"tenant":"globex"}"#);
         let token = format!("eyJhbGciOiJub25lIn0.{payload}.bogus");
         let resp = app()
             .oneshot(

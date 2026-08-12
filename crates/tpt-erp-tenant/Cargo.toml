@@ -20,6 +20,13 @@ thiserror = { workspace = true }
 uuid = { workspace = true }
 base64 = { workspace = true }
 
+# Real JWT verification (HS256). Provides `Principal` population + an Axum
+# auth middleware gating tenant selection behind a verified credential.
+tpt-erp-entity = { workspace = true, optional = true }
+hmac = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+chrono = { workspace = true, optional = true }
+
 # Optional web integration: Axum extractor + resolver middleware.
 axum = { workspace = true, optional = true }
 tower = { workspace = true }
@@ -27,8 +34,11 @@ tokio = { workspace = true }
 sqlx = { workspace = true, optional = true }
 
 [features]
-# Enables `TenantContext` Axum extractor + resolver layer.
-axum = ["dep:axum"]
+# Real JWT verification (HS256) for issuing/verifying bearer tokens. Verification
+# is independent of the web layer; the Axum middleware lives behind `axum`.
+auth = ["dep:tpt-erp-entity", "dep:hmac", "dep:sha2", "dep:chrono"]
+# Enables `TenantContext` Axum extractor + resolver layer + auth middleware.
+axum = ["dep:axum", "auth"]
 # Enables a real Postgres connection that executes `SET LOCAL app.tenant_id`
 # per request/transaction so Row-Level Security actually scopes the query.
 sqlx = ["dep:sqlx", "axum"]

@@ -35,23 +35,21 @@ docs/        # architecture & usage documentation
 
 ## Status
 
-This repository is in **Phase 5: Platform Hardening** — all six reference ERPs
+This repository is in **Phase 6: Post-Hardening Review** — all six reference ERPs
 (3PL/WMS, Manufacturing/MES, Accounting/GL, E-commerce/OMS, Retail/POS, Fleet/TMS) are
-implemented and the framework core has been through a full-source security/correctness
-review. See [`todo.md`](./todo.md) for the roadmap and the review's remaining (and
-resolved) items.
+implemented, the framework core has been through a full-source security/correctness
+review (Phases 5 & 6), and the remaining hardening items have been resolved. See
+[`todo.md`](./todo.md) for the roadmap and the review's resolved items.
 
 - [x] Workspace + `tpt-erp-primitives` (`Money`, `Id`, currency markers) and `StateMachine` derive macro
-- [x] `tpt-erp-macros`: `TptEntity` + `TptApi` derives (validation, audit, filter, Axum CRUD router)
-- [x] `tpt-erp-entity` runtime traits + in-memory `Repository`
-- [x] `tpt-erp-ledger` event store, double-entry rules, and CQRS projection engine
-- [x] `tpt-erp-tenant` identification + Postgres RLS (Axum extractor/middleware behind the `axum` feature)
+- [x] `tpt-erp-macros`: `TptEntity` + `TptApi` derives (validation, audit, filter, Axum CRUD router, RBAC)
+- [x] `tpt-erp-entity` runtime traits + in-memory **and Postgres (`sqlx`)** `Repository`
+- [x] `tpt-erp-ledger` event store (in-memory + Postgres mirror), double-entry rules, CQRS projection engine
+- [x] `tpt-erp-tenant` identification + Postgres RLS + **real JWT (HS256) auth** (Axum middleware behind the `auth` feature)
 - [x] `tpt-erp-wasm` `wasmtime` sandbox (computation-only, fuel/memory limited, hot-swap)
 - [x] `tpt-erp-bus` (in-memory + NATS JetStream) and `tpt-erp-cache` (in-memory + Redis/Dragonfly)
-- [x] `tpt-erp-cli` plugin tooling and `tpt-erp-frontend` Leptos demo
-- [ ] SQLx/Postgres repository backend for `tpt-erp-entity`
-- [ ] Postgres-backed event store for `tpt-erp-ledger`
- - [x] Reference implementations: 3PL/WMS, Manufacturing/MES, Accounting/GL, E-commerce/OMS, Retail/POS, Fleet/TMS
+- [x] `tpt-erp-cli` plugin tooling (`plugin new|build|validate|run`, `seed-demo`, `token`) and `tpt-erp-frontend` Leptos demo
+- [x] Reference implementations: 3PL/WMS, Manufacturing/MES, Accounting/GL, E-commerce/OMS, Retail/POS, Fleet/TMS
 
 ## Quickstart
 
@@ -62,6 +60,44 @@ types with `tpt-erp-primitives` and the `StateMachine` macro.
 ```bash
 cargo run -p quickstart
 ```
+
+### Run it and hit the API
+
+The fastest way to stand up the full stack (Postgres + NATS + Redis + the reference
+ledger server) is the bundled `docker-compose.yml`:
+
+```bash
+# 1. Start Postgres, NATS, Redis, and the server.
+docker compose up --build
+
+# 2. Mint a dev JWT scoped to tenant `acme` (uses the secret from docker-compose).
+export TOKEN=$(tpt token mint --tenant acme --roles admin \
+  --secret change-me-in-local-dev-only)
+
+# 3. Post a balanced double-entry transaction.
+curl -s -X POST http://localhost:3000/transactions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"entries":[
+        {"account":"11111111-1111-1111-1111-111111111111","side":"debit","amount":"100.00"},
+        {"account":"22222222-2222-2222-2222-222222222222","side":"credit","amount":"100.00"}
+      ]}'
+
+# 4. Read the tenant's balances (cross-tenant data is structurally isolated).
+curl -s http://localhost:3000/balances -H "Authorization: Bearer $TOKEN"
+```
+
+Without Docker, run the server directly (auth is enforced when `TPT_JWT_SECRET` is
+set; otherwise it falls back to dev-only header/subdomain tenant resolution):
+
+```bash
+TPT_JWT_SECRET=dev-secret cargo run -p server
+# mint a token:  tpt token mint --secret dev-secret --tenant acme
+```
+
+See [`examples/README.md`](./examples/README.md) for the full index of reference
+verticals, UIs, and Wasm plugins, and [`docs/architecture.md`](./docs/architecture.md)
+for the crate-level design.
 
 ## License
 

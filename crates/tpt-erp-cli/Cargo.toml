@@ -19,8 +19,9 @@ path = "src/main.rs"
 
 [dependencies]
 tpt-erp-wasm = { workspace = true }
+tpt-erp-tenant = { workspace = true, features = ["auth"] }
 anyhow = "1"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 wit-component = "0.224"

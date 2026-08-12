@@ -17,12 +17,12 @@ use axum::middleware::Next;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use parking_lot::Mutex;
 use tpt_erp_ledger::{
     BalanceProjection, Event, EventStore, InMemoryEventStore,
     double_entry::{
@@ -228,11 +228,18 @@ async fn journal(
 /// Build the application router.
 ///
 /// `AppState` is injected via an [`Extension`] layer (so the served router stays
-/// `Router<()>` and works with `axum::serve`), while the tenant context is resolved by
-/// the [`tpt_erp_tenant`] middleware.
+/// `Router<()>` and works with `axum::serve`). Tenant context + the authenticated
+/// [`tpt_erp_entity::auth::Principal`] are resolved per request:
+///
+/// - If `TPT_JWT_SECRET` is set, a real JWT (`HS256`) is **verified** and the tenant is
+///   taken from the verified `tenant` claim — tenant selection is gated behind a verified
+///   credential, and the `Principal` is populated for downstream `AuthPolicy` checks.
+/// - Otherwise (dev mode, no secret configured) tenant resolution falls back to the
+///   advisory header/subdomain middleware. Do not run this fallback in production.
 pub fn app(state: Arc<AppState>) -> Router {
     let shared = state.clone();
-    Router::new()
+
+    let with_state = Router::new()
         .route("/health", get(health))
         .route("/transactions", post(post_transaction).get(journal))
         .route("/balances", get(balances))
@@ -242,10 +249,38 @@ pub fn app(state: Arc<AppState>) -> Router {
                 req.extensions_mut().insert(shared.clone());
                 next.run(req)
             },
-        ))
-        .layer(axum::middleware::from_fn(
+        ));
+
+    match std::env::var("TPT_JWT_SECRET") {
+        Ok(secret) if !secret.is_empty() => app_with_auth(state, secret),
+        _ => with_state.layer(axum::middleware::from_fn(
             tpt_erp_tenant::web::tenant_context_middleware,
-        ))
+        )),
+    }
+}
+
+/// Build the application router with JWT (`HS256`) authentication enforced via
+/// `secret`. The tenant is resolved from the verified token's `tenant` claim and the
+/// authenticated [`tpt_erp_entity::auth::Principal`] is stashed for downstream
+/// `AuthPolicy` checks. Use this (or set `TPT_JWT_SECRET`) for any non-dev deployment.
+pub fn app_with_auth(state: Arc<AppState>, secret: String) -> Router {
+    let shared = state.clone();
+    let with_state = Router::new()
+        .route("/health", get(health))
+        .route("/transactions", post(post_transaction).get(journal))
+        .route("/balances", get(balances))
+        .layer(axum::middleware::from_fn(
+            move |mut req: Request, next: Next| {
+                metrics::counter!("tpt_http_requests_total").increment(1);
+                req.extensions_mut().insert(shared.clone());
+                next.run(req)
+            },
+        ));
+    let config = std::sync::Arc::new(tpt_erp_tenant::auth::JwtConfig::new(secret));
+    with_state.layer(axum::middleware::from_fn_with_state(
+        config,
+        tpt_erp_tenant::auth::auth_middleware,
+    ))
 }
 
 /// Build the default app (fresh in-memory state).

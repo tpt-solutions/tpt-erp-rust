@@ -13,7 +13,7 @@ publish = false
 parking_lot = { workspace = true }
 tpt-erp-primitives = { workspace = true }
 tpt-erp-ledger = { workspace = true }
-tpt-erp-tenant = { workspace = true, features = ["axum"] }
+tpt-erp-tenant = { workspace = true, features = ["axum", "auth"] }
 tpt-erp-observability = { workspace = true }
 axum = { workspace = true }
 metrics = "0.23"

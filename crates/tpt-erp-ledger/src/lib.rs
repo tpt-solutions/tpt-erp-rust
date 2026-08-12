@@ -21,6 +21,10 @@ pub mod store;
 #[cfg(feature = "postgres")]
 pub mod postgres_store;
 
+/// Outbox pattern for durable, at-least-once delivery from the event store to the event bus.
+#[cfg(feature = "outbox")]
+pub mod outbox;
+
 pub use anomaly::{Anomaly, AnomalyProjector};
 pub use double_entry::{
     Account, AccountId, DoubleEntry, DoubleEntryError, EntrySide, LedgerEntry, LedgerEvent,

@@ -14,8 +14,8 @@
 
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use chrono::{DateTime, Utc};
 use sqlx::postgres::PgPool;
@@ -24,6 +24,9 @@ use tracing::error;
 
 use crate::event::{Event, EventStoreError, StoredEvent};
 use crate::store::{EventStore, InMemoryEventStore};
+
+#[cfg(feature = "outbox")]
+use crate::outbox::Outbox;
 
 impl From<sqlx::Error> for EventStoreError {
     fn from(e: sqlx::Error) -> Self {
@@ -43,6 +46,11 @@ pub struct PostgresEventStore<A> {
     /// potential divergence between the in-memory log and Postgres; surface in health
     /// checks.
     durability_failures: Arc<AtomicU64>,
+    /// Optional outbox used to relay appended events onto the event bus with durable
+    /// at-least-once delivery (see `crate::outbox`). `None` when the store is used
+    /// without the outbox feature / wiring.
+    #[cfg(feature = "outbox")]
+    outbox: Option<Arc<dyn Outbox>>,
     _marker: PhantomData<A>,
 }
 
@@ -60,8 +68,18 @@ where
             cache: InMemoryEventStore::default(),
             rt,
             durability_failures: Arc::new(AtomicU64::new(0)),
+            #[cfg(feature = "outbox")]
+            outbox: None,
             _marker: PhantomData,
         }
+    }
+
+    /// Attach an [`Outbox`] so every appended event is also staged for relay onto the
+    /// event bus (see `crate::outbox`). Returns `self` for chaining.
+    #[cfg(feature = "outbox")]
+    pub fn with_outbox(mut self, outbox: Arc<dyn Outbox>) -> Self {
+        self.outbox = Some(outbox);
+        self
     }
 
     /// Number of appends whose durable Postgres mirror write failed after the in-memory
@@ -165,6 +183,11 @@ where
     /// Durable async append. Awaits the Postgres write; a mirror failure is logged (via
     /// `tracing`) and counted so it is never silent, but the already-committed in-memory
     /// event is still returned (see [`PostgresEventStore::durability_failures`]).
+    ///
+    /// When an [`Outbox`](crate::outbox::Outbox) is attached, the event is also staged for
+    /// relay onto the event bus (see `crate::outbox`). The stage is awaited (never a detached
+    /// spawn) so a failure is visible; the [`crate::outbox::OutboxRelay`] then provides the
+    /// durable at-least-once delivery guarantee.
     pub async fn append_async(&mut self, event: Event<A>) -> StoredEvent<A> {
         let stored = self.cache.append(event);
         if let Err(e) = self.mirror(&stored).await {
@@ -175,6 +198,19 @@ where
                 "Postgres event mirror write failed"
             );
             self.durability_failures.fetch_add(1, Ordering::SeqCst);
+        }
+        #[cfg(feature = "outbox")]
+        if let Some(outbox) = &self.outbox {
+            let subject = format!("ledger.{}", stored.event_type);
+            let payload = serde_json::to_vec(&stored.payload).unwrap_or_default();
+            if let Err(e) = outbox.stage(&subject, &payload).await {
+                error!(
+                    aggregate_id = %stored.aggregate_id,
+                    sequence = stored.sequence,
+                    error = %e,
+                    "outbox stage failed"
+                );
+            }
         }
         stored
     }

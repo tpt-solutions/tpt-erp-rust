@@ -50,9 +50,32 @@ jobs:
       - name: Test
         run: cargo test --workspace --all-targets
 
+  # Generate a CycloneDX SBOM of the whole workspace (Rust crates + transitive
+  # dependencies) for supply-chain attestation — required by many enterprise ERP
+  # buyers during procurement. Uploaded as a build artifact on every release tag.
+  sbom:
+    name: generate SBOM
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: tpt-erp-rust.sbom.cdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: tpt-erp-rust-sbom
+          path: tpt-erp-rust.sbom.cdx.json
+
   publish:
     name: publish crates
-    needs: verify
+    needs: [verify, sbom]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

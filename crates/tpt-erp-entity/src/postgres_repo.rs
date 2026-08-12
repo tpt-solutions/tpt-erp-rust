@@ -7,6 +7,18 @@
 //! to SQL later without changing the `Repository` contract. Swap this in for
 //! [`InMemoryRepository`] to serve the same generated Axum router from Postgres,
 //! with Row-Level Security applied per tenant via `tpt-erp-tenant`.
+//!
+//! ## SQL identifier safety
+//!
+//! Table and column names are interpolated into SQL via `format!` (e.g.
+//! `format!("SELECT ... FROM {}", check_ident(E::table_name()))`). These identifiers are
+//! **not** user input: they are supplied exclusively by the `#[derive(TptEntity)]`
+//! macro's `table`/`id` attributes at compile time. Values, by contrast, are
+//! always bound via `sqlx::query(...).bind(...)` and never interpolated. The
+//! [`check_ident`] guard asserts every interpolated identifier is a safe SQL
+//! identifier; if it ever fires, that indicates a macro bug, not attacker
+//! control. Should identifiers ever become dynamic, route them through
+//! `check_ident` (or proper quoting) before interpolation.
 
 use async_trait::async_trait;
 use serde::Serialize;
@@ -16,6 +28,20 @@ use sqlx::postgres::PgPool;
 use crate::entity::{ApplyFilter, EntityId, EntityTable};
 use crate::repository::{Page, Pagination, Repository, RepositoryError};
 use crate::validation::Validatable;
+
+/// Assert `name` is a safe bare SQL identifier (ASCII alphanumerics + `_`).
+///
+/// See the module docs for why this is a defensive guard rather than a runtime
+/// injection boundary. A failing assertion means a `#[derive(TptEntity)]` emitted
+/// an invalid identifier and is a programming error in the macro, not attacker
+/// input reaching SQL.
+fn check_ident(name: &str) -> &str {
+    debug_assert!(
+        !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+        "SQL identifier `{name}` is not a safe bare identifier"
+    );
+    name
+}
 
 /// A [`Repository`] backed by a Postgres table `(id TEXT PRIMARY KEY, data JSONB, ...)`.
 pub struct PostgresRepository<E: EntityTable> {
@@ -41,7 +67,7 @@ impl<E: EntityTable> PostgresRepository<E> {
                 data JSONB NOT NULL, \
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(), \
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now())",
-            table = E::table_name()
+            table = check_ident(E::table_name())
         );
         sqlx::query(&sql)
             .execute(&self.pool)
@@ -56,7 +82,7 @@ impl<E: EntityTable> PostgresRepository<E> {
     {
         let rows = sqlx::query_as::<_, (String, serde_json::Value)>(&format!(
             "SELECT id, data FROM {}",
-            E::table_name()
+            check_ident(E::table_name())
         ))
         .fetch_all(&self.pool)
         .await
@@ -64,8 +90,7 @@ impl<E: EntityTable> PostgresRepository<E> {
         let mut out = Vec::with_capacity(rows.len());
         for (_, data) in rows {
             out.push(
-                serde_json::from_value(data)
-                    .map_err(|e| RepositoryError::Backend(Box::new(e)))?,
+                serde_json::from_value(data).map_err(|e| RepositoryError::Backend(Box::new(e)))?,
             );
         }
         Ok(out)
@@ -106,8 +131,8 @@ where
     async fn get(&self, id: E::Id) -> Result<Option<E>, RepositoryError> {
         let data: Option<serde_json::Value> = sqlx::query_scalar(&format!(
             "SELECT data FROM {} WHERE {} = $1",
-            E::table_name(),
-            E::id_column()
+            check_ident(E::table_name()),
+            check_ident(E::id_column())
         ))
         .bind(id.to_string())
         .fetch_optional(&self.pool)
@@ -127,8 +152,8 @@ where
             serde_json::to_value(&entity).map_err(|e| RepositoryError::Backend(Box::new(e)))?;
         let res = sqlx::query(&format!(
             "INSERT INTO {} (id, data) VALUES ($1, $2) ON CONFLICT ({}) DO NOTHING",
-            E::table_name(),
-            E::id_column()
+            check_ident(E::table_name()),
+            check_ident(E::id_column())
         ))
         .bind(entity.id().to_string())
         .bind(data)
@@ -150,8 +175,8 @@ where
             serde_json::to_value(&entity).map_err(|e| RepositoryError::Backend(Box::new(e)))?;
         let res = sqlx::query(&format!(
             "UPDATE {} SET data = $2, updated_at = now() WHERE {} = $1",
-            E::table_name(),
-            E::id_column()
+            check_ident(E::table_name()),
+            check_ident(E::id_column())
         ))
         .bind(id.to_string())
         .bind(data)
@@ -168,14 +193,37 @@ where
     async fn delete(&self, id: E::Id) -> Result<bool, RepositoryError> {
         let res = sqlx::query(&format!(
             "DELETE FROM {} WHERE {} = $1",
-            E::table_name(),
-            E::id_column()
+            check_ident(E::table_name()),
+            check_ident(E::id_column())
         ))
         .bind(id.to_string())
         .execute(&self.pool)
         .await
         .map_err(|e| RepositoryError::Backend(Box::new(e)))?;
         Ok(res.rows_affected() > 0)
+    }
+}
+
+#[cfg(test)]
+mod ident_tests {
+    use super::check_ident;
+
+    #[test]
+    fn accepts_valid_identifiers() {
+        assert_eq!(check_ident("orders"), "orders");
+        assert_eq!(check_ident("line_items_v2"), "line_items_v2");
+    }
+
+    #[test]
+    #[should_panic]
+    fn rejects_empty_identifier() {
+        check_ident("");
+    }
+
+    #[test]
+    #[should_panic]
+    fn rejects_unsafe_identifier() {
+        check_ident("orders; DROP TABLE users");
     }
 }
 

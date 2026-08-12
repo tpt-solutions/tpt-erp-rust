@@ -11,6 +11,7 @@
 
 mod plugin;
 mod seed;
+mod token;
 
 use clap::{Parser, Subcommand};
 
@@ -27,6 +28,8 @@ enum Command {
     Plugin(plugin::PluginCommand),
     /// Generate a small sample dataset for evaluating the platform.
     SeedDemo(seed::SeedCommand),
+    /// Mint a JWT for local/dev use against an authenticated server.
+    Token(token::TokenCommand),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -34,5 +37,6 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Command::Plugin(cmd) => plugin::run(cmd),
         Command::SeedDemo(cmd) => seed::run(cmd),
+        Command::Token(cmd) => token::run(cmd),
     }
 }

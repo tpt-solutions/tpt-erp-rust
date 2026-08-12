@@ -1,0 +1,34 @@
+[package]
+name = "bus-visualizer"
+description = "Live event-bus visualizer for TPT ERP: streams OMS→WMS→TMS→GL events over tpt-erp-bus via SSE."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "bus-visualizer"
+path = "src/main.rs"
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+tpt-erp-bus = { workspace = true }
+tpt-erp-primitives = { workspace = true }
+tpt-erp-observability = { workspace = true }
+flow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+futures = "0.3"
+rust_decimal = { workspace = true }
+chrono = { workspace = true }
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

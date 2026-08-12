@@ -13,13 +13,20 @@ docs/       architecture & usage notes
 
 ## Crates
 
-| Crate           | Responsibility                                                          | Status      |
-|-----------------|------------------------------------------------------------------------|-------------|
-| `tpt-erp-primitives`| `Money<C>`, `Id<T>`, `IntId<T>`, `Currency`, `StateMachine` derive.    | Implemented |
-| `tpt-erp-macros`    | Proc-macros: `StateMachine`, `TptEntity`, `TptApi`.                    | Implemented |
-| `tpt-erp-ledger`    | Append-only event store (optimistic concurrency), double-entry core, CQRS projections. | Implemented (core) |
-| `tpt-erp-tenant`    | Multi-tenancy: identification + Postgres RLS + `SET LOCAL` + Axum extractor/middleware. | Implemented  |
-| `tpt-erp-wasm`      | `wasmtime` sandbox for safe, hot-loadable business-logic plugins.      | Scaffold    |
+| Crate                 | Responsibility                                                                 | Status      |
+|-----------------------|-------------------------------------------------------------------------------|-------------|
+| `tpt-erp-primitives`  | `Money<C>`, `Id<T>`, `IntId<T>`, `Currency`, `StateMachine` derive, `Money::allocate`. | Implemented |
+| `tpt-erp-macros`      | Proc-macros: `StateMachine`, `TptEntity`, `TptApi` (CRUD router + RBAC).     | Implemented |
+| `tpt-erp-ledger`      | Append-only event store (optimistic concurrency), double-entry core, CQRS projections, Postgres mirror (`EventStore` trait). | Implemented |
+| `tpt-erp-entity`      | `Repository` trait, `PostgresRepository`, in-memory repo, validation, audit, `AuthPolicy`/`Principal`, filter/pagination. | Implemented |
+| `tpt-erp-tenant`      | Multi-tenancy: identification, Postgres RLS + `SET LOCAL`, Axum extractor/middleware, **real JWT (HS256) auth** (`auth` module). | Implemented |
+| `tpt-erp-wasm`        | `wasmtime` sandbox for safe, hot-loadable, computation-only business-logic plugins (WIT contract, fuel/memory limits, hot-swap). | Implemented |
+| `tpt-erp-cache`       | `SessionStore` + `ReadModelCache` over in-memory or Redis backends.          | Implemented |
+| `tpt-erp-bus`         | Event bus (`tpt-erp-bus`) over in-memory or NATS JetStream backends.         | Implemented |
+| `tpt-erp-observability`| Structured tracing/logging + metrics endpoint wiring.                       | Implemented |
+| `tpt-erp-cli`         | `tpt` CLI: `plugin new|build|validate|run`, `seed-demo`, `token mint`.      | Implemented |
+| `tpt-erp-frontend`    | Leptos workspace member; shares `Money<Usd>` with the backend.              | Implemented |
+
 
 ## Design principles
 
