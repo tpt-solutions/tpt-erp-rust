@@ -160,7 +160,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: cargo deny (licenses / bans / advisories / sources)
-        uses: EmbarkStudios/cargo-deny-action@v1
+        uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
           arguments: --all-features
