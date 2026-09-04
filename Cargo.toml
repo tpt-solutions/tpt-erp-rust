@@ -76,7 +76,7 @@ async-trait = "0.1"
 parking_lot = "0.12"
 base64 = "0.22"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "uuid", "macros"] }
-leptos = { version = "0.7", default-features = false }
+leptos = { version = "0.8", default-features = false }
 rayon = "1"
 rumqttc = { version = "0.24", features = ["use-rustls"] }
 rand = "0.8"
