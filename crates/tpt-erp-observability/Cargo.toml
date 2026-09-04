@@ -13,7 +13,7 @@ publish = false
 axum = { workspace = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-metrics = "0.23"
+metrics = "0.24"
 metrics-exporter-prometheus = "0.15"
 
 [dev-dependencies]
