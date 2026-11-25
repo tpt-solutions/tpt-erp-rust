@@ -1,5 +1,8 @@
 [package]
 name = "pos-ui"
+readme = "README.md"
+keywords = ["erp", "retail", "leptos", "wasm", "pos"]
+categories = ["gui", "wasm", "web-programming"]
 description = "Leptos cashier-terminal view for the POS reference ERP: live transaction state and offline/online indicator."
 version.workspace = true
 edition.workspace = true

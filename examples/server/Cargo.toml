@@ -1,5 +1,8 @@
 [package]
 name = "server"
+readme = "README.md"
+keywords = ["erp", "axum", "ledger", "multitenancy", "jwt"]
+categories = ["web-programming", "authentication", "database"]
 description = "Reference Axum server wiring tpt-erp-tenant + tpt-erp-ledger (multi-tenant ledger API)."
 version.workspace = true
 edition.workspace = true

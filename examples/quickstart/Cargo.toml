@@ -1,5 +1,8 @@
 [package]
 name = "quickstart"
+readme = "README.md"
+keywords = ["erp", "crud", "api", "multitenancy", "axum"]
+categories = ["web-programming", "database"]
 description = "10-minute quickstart: a type-safe, multi-tenant CRUD API with tpt-erp-primitives + TptEntity + TptApi."
 version.workspace = true
 edition.workspace = true

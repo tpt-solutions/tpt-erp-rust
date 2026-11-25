@@ -1,5 +1,8 @@
 [package]
 name = "pos"
+readme = "README.md"
+keywords = ["erp", "retail", "pos", "offline-first", "state-machine"]
+categories = ["data-structures", "database", "rust-patterns"]
 description = "Reference Retail / POS implementation on TPT ERP: transaction state machine, split tender, drawer reconciliation, offline-first sync, and Wasm pricing plugin."
 version.workspace = true
 edition.workspace = true

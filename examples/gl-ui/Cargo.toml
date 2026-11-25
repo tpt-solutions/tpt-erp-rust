@@ -1,5 +1,8 @@
 [package]
 name = "gl-ui"
+readme = "README.md"
+keywords = ["erp", "accounting", "leptos", "wasm", "frontend"]
+categories = ["gui", "wasm", "finance"]
 description = "Leptos operator UI for the GL reference ERP: journal-entry and trial-balance views."
 version.workspace = true
 edition.workspace = true

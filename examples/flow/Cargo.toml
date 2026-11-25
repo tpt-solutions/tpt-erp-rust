@@ -1,5 +1,8 @@
 [package]
 name = "flow"
+readme = "README.md"
+keywords = ["erp", "orchestration", "saga", "event-bus", "integration"]
+categories = ["asynchronous", "web-programming", "rust-patterns"]
 description = "Cross-vertical reference flow on TPT ERP: an OMS order triggers a WMS pick, which triggers a TMS dispatch route, which triggers a GL posting — orchestrated entirely over tpt-erp-bus."
 version.workspace = true
 edition.workspace = true

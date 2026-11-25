@@ -1,5 +1,8 @@
 [package]
 name = "tpt-erp-observability"
+readme = "README.md"
+keywords = ["erp", "tracing", "logging", "metrics", "prometheus"]
+categories = ["development-tools", "web-programming"]
 description = "Structured logging (tracing) and a Prometheus metrics endpoint for TPT ERP services."
 version.workspace = true
 edition.workspace = true

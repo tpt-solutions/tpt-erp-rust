@@ -1,5 +1,8 @@
 [package]
 name = "mes"
+readme = "README.md"
+keywords = ["erp", "manufacturing", "mrp", "oee", "bom"]
+categories = ["concurrency", "data-structures", "rust-patterns"]
 description = "Reference Manufacturing/MES implementation on TPT ERP: parallel MRP engine + WIP state machine."
 version.workspace = true
 edition.workspace = true

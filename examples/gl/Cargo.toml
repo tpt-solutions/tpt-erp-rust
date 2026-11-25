@@ -1,5 +1,8 @@
 [package]
 name = "gl"
+readme = "README.md"
+keywords = ["erp", "accounting", "ledger", "multi-currency", "event-sourcing"]
+categories = ["finance", "database", "data-structures"]
 description = "Reference Accounting/GL implementation on TPT ERP: multi-currency event-sourced double-entry journal, FX revaluation, period-end close, and CQRS financial reporting."
 version.workspace = true
 edition.workspace = true

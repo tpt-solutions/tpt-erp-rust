@@ -1,5 +1,8 @@
 [package]
 name = "wms-ui"
+readme = "README.md"
+keywords = ["erp", "warehouse", "leptos", "wasm", "inventory"]
+categories = ["gui", "wasm", "web-programming"]
 description = "Leptos operator UI for the WMS reference ERP: inventory + picker route planning."
 version.workspace = true
 edition.workspace = true

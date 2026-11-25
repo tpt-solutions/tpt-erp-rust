@@ -1,5 +1,8 @@
 [package]
 name = "mes-ui"
+readme = "README.md"
+keywords = ["erp", "manufacturing", "leptos", "wasm", "oee"]
+categories = ["gui", "wasm", "web-programming"]
 description = "Leptos operator UI for the MES reference ERP: WIP + QC entry and a live OEE dashboard."
 version.workspace = true
 edition.workspace = true

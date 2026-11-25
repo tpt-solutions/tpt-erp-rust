@@ -1,5 +1,8 @@
 [package]
 name = "oms"
+readme = "README.md"
+keywords = ["erp", "ecommerce", "saga", "order-management", "checkout"]
+categories = ["web-programming", "database", "rust-patterns"]
 description = "Reference E-commerce / OMS implementation on TPT ERP: catalog CRUD, event-sourced reservations, order saga, Wasm promo plugin, and Leptos storefront."
 version.workspace = true
 edition.workspace = true

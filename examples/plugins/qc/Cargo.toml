@@ -1,5 +1,9 @@
 [package]
 name = "qc"
+description = "MES quality-control tolerance and telemetry-parsing Wasm plugin for TPT ERP (computation-only, plugin world)."
+readme = "README.md"
+keywords = ["erp", "wasm", "plugin", "wit", "webassembly"]
+categories = ["wasm", "development-tools"]
 version = "0.1.0"
 edition = "2021"
 publish = false

@@ -1,5 +1,8 @@
 [package]
 name = "tms-ui"
+readme = "README.md"
+keywords = ["erp", "logistics", "leptos", "wasm", "fleet"]
+categories = ["gui", "wasm", "web-programming"]
 description = "Leptos dispatcher live-map / route-plan view for the TMS reference ERP."
 version.workspace = true
 edition.workspace = true

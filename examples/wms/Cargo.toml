@@ -1,5 +1,8 @@
 [package]
 name = "wms"
+readme = "README.md"
+keywords = ["erp", "warehouse", "inventory", "event-sourcing", "routing"]
+categories = ["data-structures", "concurrency", "database"]
 description = "Reference 3PL/WMS implementation on TPT ERP: real-time event-sourced inventory + wave/route optimization."
 version.workspace = true
 edition.workspace = true

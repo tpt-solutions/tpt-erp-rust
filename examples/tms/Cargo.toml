@@ -1,5 +1,8 @@
 [package]
 name = "tms"
+readme = "README.md"
+keywords = ["erp", "logistics", "fleet", "geofencing", "routing"]
+categories = ["data-structures", "rust-patterns", "asynchronous"]
 description = "Reference Fleet / TMS implementation on TPT ERP: GPS ingestion, geofencing, route optimization, driver HOS state machine, and Wasm dispatch plugin."
 version.workspace = true
 edition.workspace = true
