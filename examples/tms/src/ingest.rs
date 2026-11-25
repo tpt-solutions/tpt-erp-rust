@@ -136,11 +136,11 @@ pub mod mqtt {
     //! Feature-gated (`--features mqtt`) because it pulls in the MQTT client; the core
     //! pipeline above has no transport dependency.
     use futures::stream::{self, Stream};
-    use rumqttc::{Event, Incoming, Packet, QoS, Request};
+    use rumqttc::{Event, Packet, QoS, Request};
 
     /// Adapt an `rumqttc` event loop into a stream of raw payload bytes. Only `Publish`
     /// packets are forwarded; everything else (ack, suback, ping) is ignored.
-    pub fn mqtt_source(mut event_loop: rumqttc::EventLoop) -> impl Stream<Item = Vec<u8>> + '_ {
+    pub fn mqtt_source(event_loop: rumqttc::EventLoop) -> impl Stream<Item = Vec<u8>> {
         stream::unfold(event_loop, |mut el| async move {
             loop {
                 match el.poll().await {

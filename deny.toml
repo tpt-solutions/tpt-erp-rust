@@ -232,6 +232,16 @@ wildcards = "allow"
 
 [advisories]
 yanked = "warn"
+# Accepted, with reasons. Unmaintained crates have no drop-in replacement at the
+# versions our transitive dependencies pin; revisit when those parents move.
+ignore = [
+    # chrono 0.4.45: used directly across the workspace. Unmaintained, not unsound.
+    { id = "RUSTSEC-2026-0543", reason = "chrono is used workspace-wide; no maintained drop-in replacement yet" },
+    # paste 1.0.15: proc-macro helper pulled in by leptos / tachys (frontend only).
+    { id = "RUSTSEC-2024-0436", reason = "paste is a build-time macro helper pulled in by leptos; no fix version" },
+    # proc-macro-error2 2.0.1: pulled in by leptos_macro / syn_derive (frontend only).
+    { id = "RUSTSEC-2026-0173", reason = "build-time proc-macro dependency of leptos; no fix version" },
+]
 
 [sources]
 unknown-registry = "deny"
