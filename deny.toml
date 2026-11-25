@@ -1,0 +1,239 @@
+# cargo-deny policy: license allow-list.
+#
+# Policy: Apache-only dependencies are NOT allowed. A crate is accepted when at
+# least one of its licenses (in an OR expression) is on the allow-list below.
+# Because Apache-2.0 is deliberately absent from `allow`, a dual "MIT OR
+# Apache-2.0" crate passes via MIT, while an Apache-only crate (including
+# "Apache-2.0 WITH LLVM-exception" and "Apache-2.0 AND ISC") fails.
+#
+# The [[licenses.exceptions]] entries below are KNOWN VIOLATIONS that are
+# tracked for migration. Each one is an explicit, reviewable waiver. Remove
+# the entry when the crate is replaced or upgraded to a non-Apache-only
+# license. Do not add new entries without a recorded decision.
+
+[licenses]
+confidence-threshold = 0.93
+allow = [
+    "MIT",
+    "BSD-1-Clause",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "Unlicense",
+    "MIT-0",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+]
+
+# Apache-only crates present in Cargo.lock as of the policy review.
+# Grouped by the workspace path that pulls them in (see the review notes).
+# --- wasmtime (tpt-erp-wasm -> tpt-erp-cli, oms, flow)
+[[licenses.exceptions]]
+name = "cranelift-assembler-x64"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-assembler-x64-meta"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-bforest"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-bitset"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-codegen"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-codegen-meta"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-codegen-shared"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-control"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-entity"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-frontend"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-isle"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-native"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "cranelift-srcgen"
+version = "0.134.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "pulley-interpreter"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "pulley-macros"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "regalloc2"
+version = "0.15.2"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "target-lexicon"
+version = "0.13.5"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime-environ"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime-internal-component-macro"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime-internal-component-util"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime-internal-core"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime-internal-cranelift"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime-internal-fiber"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime-internal-jit-debug"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime-internal-jit-icache-coherence"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime-internal-unwinder"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime-internal-versioned-export-macros"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[[licenses.exceptions]]
+name = "wasmtime-internal-wit-bindgen"
+version = "47.0.3"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+# --- async-nats / NATS (tpt-erp-bus -> ledger, gl, flow)
+[[licenses.exceptions]]
+name = "async-nats"
+version = "0.50.0"
+allow = ["Apache-2.0"]
+
+[[licenses.exceptions]]
+name = "aws-lc-sys"
+version = "0.44.0"
+allow = ["Apache-2.0", "BSD-3-Clause", "ISC", "MIT", "MIT-0"]
+
+[[licenses.exceptions]]
+name = "nkeys"
+version = "0.4.5"
+allow = ["Apache-2.0"]
+
+[[licenses.exceptions]]
+name = "nuid"
+version = "0.5.0"
+allow = ["Apache-2.0"]
+
+[[licenses.exceptions]]
+name = "ring"
+version = "0.17.14"
+allow = ["Apache-2.0", "ISC"]
+
+# --- rumqttc (tms, wms, flow)
+[[licenses.exceptions]]
+name = "rumqttc"
+version = "0.24.0"
+allow = ["Apache-2.0"]
+
+# --- borsh-derive (rust_decimal -> borsh; primitives and most crates)
+[[licenses.exceptions]]
+name = "borsh-derive"
+version = "1.8.0"
+allow = ["Apache-2.0"]
+
+# --- sync_wrapper (axum 0.8; web servers)
+[[licenses.exceptions]]
+name = "sync_wrapper"
+version = "1.0.2"
+allow = ["Apache-2.0"]
+
+# --- sketches-ddsketch (metrics-util -> tpt-erp-observability)
+[[licenses.exceptions]]
+name = "sketches-ddsketch"
+version = "0.2.2"
+allow = ["Apache-2.0"]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+
+[advisories]
+yanked = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

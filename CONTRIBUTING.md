@@ -25,13 +25,21 @@ safety- and money-sensitive domains; rigor and kindness both matter.
 - Prefer **compile-time guarantees** over runtime checks. When you can make an invalid
   state unrepresentable, do it.
 
-## Submitting changes
+## Contributing via issues
 
-- Keep PRs focused.
-- Ensure CI (fmt, clippy with `-D warnings`, tests) passes.
-- Update [`todo.md`](./todo.md) checkboxes for any roadmap items you complete.
+Contributions are accepted **through GitHub issues only**. Pull requests are not
+accepted.
+
+- Search existing issues first to avoid duplicates.
+- Open an issue to report a bug, propose a feature, or suggest a change. Include the
+  crate or example affected, the steps to reproduce (for bugs), and the expected
+  behavior.
+- Keep each issue focused on one problem or proposal.
+- Roadmap work is tracked in [`todo.md`](./todo.md); reference it in an issue if your
+  report relates to a roadmap item.
 
 ## License
 
-By contributing, you agree that your contributions will be dual-licensed under the
-MIT and Apache-2.0 licenses, consistent with the rest of the project.
+By opening an issue with suggested code or text, you agree that it may be incorporated
+into the project under the MIT and Apache-2.0 licenses, consistent with the rest of
+the project.

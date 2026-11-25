@@ -154,6 +154,15 @@ jobs:
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      # Install a prebuilt cargo-audit binary so rustsec/audit-check does not
+      # compile it from source with `cargo install` (that build failed with
+      # exit 101 on the runner). The action skips its own install when the
+      # binary is already on PATH.
+      - name: Install cargo-audit (prebuilt)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
       - name: cargo audit (RUSTSEC advisories)
         uses: rustsec/audit-check@v2
         with:
