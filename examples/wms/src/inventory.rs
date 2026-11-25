@@ -11,11 +11,11 @@
 //! background job on `tpt-erp-bus`.
 
 use chrono::NaiveDate;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use parking_lot::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tpt_erp_cache::{CacheError, ReadModelCache};
 use tpt_erp_ledger::{Event, EventStore, InMemoryEventStore, Projector, StoredEvent, replay};
@@ -451,21 +451,22 @@ impl InventoryEngine {
 
     async fn after_write(&self, key: StockKey, new_qty: i64) {
         if new_qty < self.reorder_point
-            && let Some(bus) = &self.bus {
-                let payload = serde_json::json!({
-                    "bin": key.bin.as_str(),
-                    "sku": key.sku.as_str(),
-                    "on_hand": new_qty,
-                })
-                .to_string();
-                if bus
-                    .publish("jobs.replenish", payload.as_bytes())
-                    .await
-                    .is_ok()
-                {
-                    self.published_jobs.fetch_add(1, Ordering::Relaxed);
-                }
+            && let Some(bus) = &self.bus
+        {
+            let payload = serde_json::json!({
+                "bin": key.bin.as_str(),
+                "sku": key.sku.as_str(),
+                "on_hand": new_qty,
+            })
+            .to_string();
+            if bus
+                .publish("jobs.replenish", payload.as_bytes())
+                .await
+                .is_ok()
+            {
+                self.published_jobs.fetch_add(1, Ordering::Relaxed);
             }
+        }
         if let Some(cache) = &self.cache {
             cache
                 .put(
@@ -667,12 +668,13 @@ impl InventoryEngine {
                 })?;
                 let ld = &lots[i];
                 if let Some(exp) = ld.expiry
-                    && exp < as_of {
-                        return Err(InventoryError::ExpiredLot {
-                            key,
-                            lot: lot.clone(),
-                        });
-                    }
+                    && exp < as_of
+                {
+                    return Err(InventoryError::ExpiredLot {
+                        key,
+                        lot: lot.clone(),
+                    });
+                }
                 if ld.on_hand < qty {
                     return Err(InventoryError::OverLotQuantity {
                         key,
@@ -700,10 +702,11 @@ impl InventoryEngine {
 
             // 3. Mutate the lot ledger now that the read borrow has ended.
             if let Some(lots) = shard.lots.get_mut(&key)
-                && let Some(ld) = lots.iter_mut().find(|l| l.lot == lot) {
-                    ld.serials.drain(0..n);
-                    ld.on_hand -= qty;
-                }
+                && let Some(ld) = lots.iter_mut().find(|l| l.lot == lot)
+            {
+                ld.serials.drain(0..n);
+                ld.on_hand -= qty;
+            }
 
             (
                 LotConsumption {
@@ -1202,9 +1205,9 @@ pub fn demo_tenant() -> TenantId {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Duration;
     use tpt_erp_bus::memory::InMemoryBus;
     use tpt_erp_cache::memory::InMemoryCache;
-    use chrono::Duration;
 
     fn key() -> StockKey {
         StockKey {
