@@ -149,7 +149,7 @@ impl PluginRuntime {
         let mut linker: Linker<TptHost> = Linker::new(&engine);
         // Wire the `erp` host interface into every guest. No WASI is
         // linked, which is what keeps plugins computation-only.
-        PluginBindings::add_to_linker(&mut linker, |host: &mut TptHost| host)?;
+        PluginBindings::add_to_linker::<_, wasmtime::component::HasSelf<_>>(&mut linker, |host: &mut TptHost| host)?;
 
         Ok(Self {
             engine,

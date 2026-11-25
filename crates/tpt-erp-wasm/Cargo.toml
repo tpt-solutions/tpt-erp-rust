@@ -2,7 +2,7 @@
 name = "tpt-erp-wasm"
 readme = "README.md"
 keywords = ["erp", "webassembly", "wasm", "wasmtime", "plugins"]
-categories = ["wasm", "plugin", "development-tools"]
+categories = ["wasm", "development-tools"]
 
 description = "Safe WebAssembly plugin runtime for TPT ERP using wasmtime (WIT-based, computation-only, fuel/memory limited, hot-swappable)."
 version.workspace = true
@@ -15,7 +15,7 @@ rust-version.workspace = true
 [dependencies]
 parking_lot = { workspace = true }
 thiserror = { workspace = true }
-wasmtime = { version = "47", default-features = false, features = [
+wasmtime = { version = "51", default-features = false, features = [
     "runtime",
     "cranelift",
     "component-model",

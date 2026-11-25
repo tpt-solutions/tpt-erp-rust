@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 
 use ed25519_dalek::{Signer, SigningKey, Signature, Verifier, VerifyingKey};
-use rand::rngs::OsRng;
+use rand::{rngs::SysRng, TryRng};
 
 /// Errors raised by the registry.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -159,7 +159,11 @@ impl PluginRegistry {
 
 /// Generate a fresh Ed25519 signing key (used by publishers to bootstrap their identity).
 pub fn generate_signing_key() -> SigningKey {
-    SigningKey::generate(&mut OsRng)
+    let mut seed = [0u8; 32];
+    SysRng
+        .try_fill_bytes(&mut seed)
+        .expect("OS random number generator unavailable");
+    SigningKey::from_bytes(&seed)
 }
 
 #[cfg(test)]

@@ -18,5 +18,4 @@
 wasmtime::component::bindgen!({
     path: "wit",
     world: "plugin",
-    async: false,
 });
