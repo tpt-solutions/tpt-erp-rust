@@ -75,13 +75,17 @@ pub fn from_subdomain(host: &str) -> Option<TenantSlug> {
     if labels.len() < 3 {
         return None;
     }
-    let first = labels[0];
-    if first.is_empty() {
+    let first = labels[0].to_ascii_lowercase();
+    if first.is_empty() || RESERVED_SUBDOMAINS.contains(&first.as_str()) {
         None
     } else {
-        Some(TenantSlug(first.to_ascii_lowercase()))
+        Some(TenantSlug(first))
     }
 }
+
+/// Infrastructure labels that are never tenants. `www.example.com` must not resolve to
+/// a tenant named `www`.
+pub const RESERVED_SUBDOMAINS: &[&str] = &["www", "api", "app", "admin", "static", "mail"];
 
 /// Extract the tenant slug from an explicit header value (e.g. `X-Tenant-Id`).
 pub fn from_header(value: &str) -> Option<TenantSlug> {
@@ -135,6 +139,16 @@ mod tests {
     fn apex_domain_is_rejected() {
         // A two-label apex (`example.com`) is not a tenant subdomain.
         assert_eq!(from_subdomain("example.com"), None);
+    }
+
+    #[test]
+    fn reserved_labels_are_not_tenants() {
+        assert_eq!(from_subdomain("www.example.com"), None);
+        assert_eq!(from_subdomain("API.example.com"), None);
+        assert_eq!(
+            from_subdomain("acme.example.com"),
+            Some(TenantSlug("acme".into()))
+        );
     }
 
     #[test]

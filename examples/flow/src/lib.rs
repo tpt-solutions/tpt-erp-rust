@@ -11,8 +11,8 @@
 //! ```
 //!
 //! Each step is a *different* reference vertical (`oms`, `wms`, `tms`, `gl`), wired
-//! together only by `tpt-erp-bus` subjects. Swap the in-memory bus for NATS JetStream
-//! (feature `nats` on `tpt-erp-bus`) and the same flow runs across processes.
+//! together only by `tpt-erp-bus` subjects. Swap the in-memory bus for the Postgres
+//! backend (feature `postgres` on `tpt-erp-bus`) and the same flow runs across processes.
 
 use std::str::FromStr;
 use std::sync::Arc;

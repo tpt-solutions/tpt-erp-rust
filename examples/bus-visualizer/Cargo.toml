@@ -1,7 +1,7 @@
 [package]
 name = "bus-visualizer"
 readme = "README.md"
-keywords = ["erp", "event-bus", "sse", "nats", "visualization"]
+keywords = ["erp", "event-bus", "sse", "postgres", "visualization"]
 categories = ["web-programming", "asynchronous", "development-tools"]
 description = "Live event-bus visualizer for TPT ERP: streams OMS→WMS→TMS→GL events over tpt-erp-bus via SSE."
 version.workspace = true
@@ -15,7 +15,7 @@ publish = false
 [[bin]]
 name = "bus-visualizer"
 readme = "README.md"
-keywords = ["erp", "event-bus", "sse", "nats", "visualization"]
+keywords = ["erp", "event-bus", "sse", "postgres", "visualization"]
 categories = ["web-programming", "asynchronous", "development-tools"]
 path = "src/main.rs"
 

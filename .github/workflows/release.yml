@@ -1,7 +1,12 @@
 name: release
 
-# Publishes each framework crate to crates.io when a `v*` tag is pushed.
-# Requires a `CARGO_REGISTRY_TOKEN` secret (crates.io API token) in the repo settings.
+# Runs on every `v*` tag. Produces:
+#   - crates.io publishes for the publishable framework crates (dependency order)
+#   - `tpt` CLI binaries for Linux, macOS and Windows, attached to a GitHub Release
+#   - a container image of the reference server at ghcr.io/<owner>/<repo>-server
+#   - a CycloneDX SBOM attached to the GitHub Release
+#
+# Requires a `CARGO_REGISTRY_TOKEN` secret (crates.io API token). GHCR uses GITHUB_TOKEN.
 on:
   push:
     tags:
@@ -14,10 +19,11 @@ env:
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
 
+permissions:
+  contents: read
+
 jobs:
-  # Gate publishing on a clean build/test run for the tagged commit. This lives in the
-  # same workflow as `publish` so `needs:` can enforce it — a tag can't be published
-  # without CI having passed on that exact commit.
+  # Gate every release on a clean build/test run for the tagged commit.
   verify:
     name: verify (fmt / clippy / test)
     runs-on: ubuntu-latest
@@ -50,9 +56,64 @@ jobs:
       - name: Test
         run: cargo test --workspace --all-targets
 
-  # Generate a CycloneDX SBOM of the whole workspace (Rust crates + transitive
-  # dependencies) for supply-chain attestation — required by many enterprise ERP
-  # buyers during procurement. Uploaded as a build artifact on every release tag.
+      - name: Docs build
+        run: cargo doc --workspace --no-deps
+
+  # Build the `tpt` CLI for each platform and package it with a SHA-256 checksum.
+  binaries:
+    name: tpt CLI (${{ matrix.target }})
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            ext: ""
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            ext: ""
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            ext: ".exe"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build tpt
+        run: cargo build --release -p tpt-erp-cli --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="tpt-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p dist/"$name"
+          cp target/${{ matrix.target }}/release/tpt${{ matrix.ext }} dist/"$name"/
+          cp README.md LICENSE-MIT LICENSE-APACHE dist/"$name"/
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "$name.zip" "$name" >/dev/null
+            sha256sum "$name.zip" > "$name.zip.sha256"
+          else
+            tar -czf "$name.tar.gz" "$name"
+            shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tpt-${{ matrix.target }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.sha256
+
+  # CycloneDX SBOM of the whole workspace for supply-chain attestation.
   sbom:
     name: generate SBOM
     needs: verify
@@ -67,15 +128,16 @@ jobs:
           format: cyclonedx-json
           output-file: tpt-erp-rust.sbom.cdx.json
 
-      - name: Upload SBOM
-        uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7
         with:
           name: tpt-erp-rust-sbom
           path: tpt-erp-rust.sbom.cdx.json
 
-  publish:
+  # Publish only crates that are not marked `publish = false`, in dependency order.
+  # Excluded: bus, cache, observability, cli, frontend (and the examples).
+  publish-crates:
     name: publish crates
-    needs: [verify, sbom]
+    needs: [verify]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -83,30 +145,77 @@ jobs:
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Verify
-        run: cargo publish --dry-run --allow-dirty
-
-      # Publish framework crates in dependency order. Inter-crate versions are kept in
-      # lockstep at 0.1.0; `--allow-dirty` tolerates the workspace metadata.
       - name: Publish tpt-erp-primitives
-        run: cargo publish -p tpt-erp-primitives --allow-dirty
+        run: cargo publish -p tpt-erp-primitives
       - name: Publish tpt-erp-macros
-        run: cargo publish -p tpt-erp-macros --allow-dirty
+        run: cargo publish -p tpt-erp-macros
       - name: Publish tpt-erp-entity
-        run: cargo publish -p tpt-erp-entity --allow-dirty
+        run: cargo publish -p tpt-erp-entity
       - name: Publish tpt-erp-ledger
-        run: cargo publish -p tpt-erp-ledger --allow-dirty
+        run: cargo publish -p tpt-erp-ledger
       - name: Publish tpt-erp-tenant
-        run: cargo publish -p tpt-erp-tenant --allow-dirty
+        run: cargo publish -p tpt-erp-tenant
       - name: Publish tpt-erp-wasm
-        run: cargo publish -p tpt-erp-wasm --allow-dirty
-      - name: Publish tpt-erp-bus
-        run: cargo publish -p tpt-erp-bus --allow-dirty
-      - name: Publish tpt-erp-cache
-        run: cargo publish -p tpt-erp-cache --allow-dirty
-      - name: Publish tpt-erp-observability
-        run: cargo publish -p tpt-erp-observability --allow-dirty
-      - name: Publish tpt-erp-cli
-        run: cargo publish -p tpt-erp-cli --allow-dirty
-      - name: Publish tpt-erp-frontend
-        run: cargo publish -p tpt-erp-frontend --allow-dirty
+        run: cargo publish -p tpt-erp-wasm
+
+  # Container image for the reference server.
+  docker:
+    name: container image
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/tpt-erp-server
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          build-args: BIN=server
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # Create the GitHub Release with changelog-driven notes and all artifacts.
+  github-release:
+    name: GitHub Release
+    needs: [binaries, sbom, publish-crates, docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" artifacts/* \
+            --title "$GITHUB_REF_NAME" \
+            --notes "See [CHANGELOG.md](CHANGELOG.md) for details. Container: ghcr.io/${{ github.repository_owner }}/tpt-erp-server:${GITHUB_REF_NAME#v}"

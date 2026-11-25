@@ -8,14 +8,12 @@ as a debugging tool for the event-sourced architecture.
 
 ## Run
 
-Against a NATS JetStream backend, point it at your broker:
+Run it locally. It drives the reference `flow` crate on the in-memory bus, so the page keeps
+receiving events:
 
 ```bash
-TPT_BUS_URL=nats://localhost:4222 cargo run -p bus-visualizer
+cargo run -p bus-visualizer
 ```
-
-Or run it locally. It drives the reference `flow` crate so the page keeps receiving
-events.
 
 ## License
 

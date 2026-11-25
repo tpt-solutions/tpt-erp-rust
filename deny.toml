@@ -33,77 +33,77 @@ allow = [
 # --- wasmtime (tpt-erp-wasm -> tpt-erp-cli, oms, flow)
 [[licenses.exceptions]]
 name = "cranelift-assembler-x64"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-assembler-x64-meta"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-bforest"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-bitset"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-codegen"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-codegen-meta"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-codegen-shared"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-control"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-entity"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-frontend"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-isle"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-native"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "cranelift-srcgen"
-version = "0.134.3"
+version = "0.138.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "pulley-interpreter"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "pulley-macros"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
@@ -118,79 +118,68 @@ allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime-environ"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime-internal-component-macro"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime-internal-component-util"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime-internal-core"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime-internal-cranelift"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime-internal-fiber"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime-internal-jit-debug"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime-internal-jit-icache-coherence"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime-internal-unwinder"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime-internal-versioned-export-macros"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
 
 [[licenses.exceptions]]
 name = "wasmtime-internal-wit-bindgen"
-version = "47.0.3"
+version = "51.0.0"
 allow = ["Apache-2.0 WITH LLVM-exception"]
-
-# --- async-nats / NATS (tpt-erp-bus -> ledger, gl, flow)
-[[licenses.exceptions]]
-name = "async-nats"
-version = "0.50.0"
-allow = ["Apache-2.0"]
 
 [[licenses.exceptions]]
 name = "aws-lc-sys"
 version = "0.44.0"
 allow = ["Apache-2.0", "BSD-3-Clause", "ISC", "MIT", "MIT-0"]
-
-[[licenses.exceptions]]
-name = "nkeys"
-version = "0.4.5"
-allow = ["Apache-2.0"]
 
 [[licenses.exceptions]]
 name = "nuid"
@@ -205,7 +194,7 @@ allow = ["Apache-2.0", "ISC"]
 # --- rumqttc (tms, wms, flow)
 [[licenses.exceptions]]
 name = "rumqttc"
-version = "0.24.0"
+version = "0.25.1"
 allow = ["Apache-2.0"]
 
 # --- borsh-derive (rust_decimal -> borsh; primitives and most crates)

@@ -2,29 +2,17 @@
 //!
 //! Event-processing and background-job transport for TPT ERP.
 //!
-//! ## Backend decision: **NATS JetStream** (not Kafka)
+//! ## Backend decision: **PostgreSQL** (our own implementation)
 //!
-//! We standardize on NATS JetStream because it is the better fit for this
-//! system's needs:
-//!
-//! - **Rust-native** — first-class [`async-nats`] client, no JVM.
-//! - **Durable by default** — JetStream persists and replays events, which
-//!   is exactly what an event-sourced ledger ([`tpt_erp_ledger`]) requires for
-//!   reprocessing/CQRS rebuilds.
-//! - **Single binary** — one `nats-server` process (or a tiny cluster)
-//!   covers both the event log *and* the background-job queue, shrinking
-//!   the ops surface versus running Kafka + Zookeeper/KRaft.
-//! - **Built-in flow control** — consumer groups, ack-based redelivery,
-//!   and KV for dedup map cleanly onto background jobs.
-//!
-//! Kafka remains a viable alternative for very high fan-out analytics
-//! workloads; if that becomes a requirement we can add a second backend
-//! behind a `kafka` feature without touching the [`EventBus`]/[`JobQueue`]
-//! contracts.
+//! Durable events and background jobs live in the same PostgreSQL database
+//! that already holds ledger state, so the bus adds no new infrastructure and
+//! no third-party messaging dependency. See the `postgres_impl` module (feature
+//! `postgres`) for the guarantees: ordered publish, at-least-once delivery
+//! with ack-based cursors, and fan-out to subscribers.
 //!
 //! The contracts here are object-safe traits so application code depends
 //! only on the interface. [`memory`] is a fully-tested in-process
-//! implementation; [`nats_impl`] (feature `nats`) is the JetStream backend.
+//! implementation, used for tests and single-process runs.
 
 use std::fmt;
 use std::future::Future;
@@ -33,8 +21,8 @@ use std::pin::Pin;
 use futures::Stream;
 
 pub mod memory;
-#[cfg(feature = "nats")]
-pub mod nats_impl;
+#[cfg(feature = "postgres")]
+pub mod postgres_impl;
 
 /// An acknowledgement callback for a delivered message. Invoked via [`Message::ack`]
 /// after the handler has finished processing; for durable backends this tells the broker
@@ -45,7 +33,7 @@ type AckFn = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + Send>> + Send
 /// A transported message.
 ///
 /// Callers must invoke [`Message::ack`] once the message has been successfully processed,
-/// which is what makes durable (NATS JetStream) delivery at-least-once rather than
+/// which is what makes durable (PostgreSQL) delivery at-least-once rather than
 /// at-most-once. In-memory messages carry a no-op ack. A message that is dropped without
 /// being acked remains unacknowledged on a durable backend and will therefore be redelivered.
 pub struct Message {
@@ -69,7 +57,7 @@ impl Message {
 
     /// Construct a message with an acknowledgement callback (durable backends). `ack_fn`
     /// is invoked when [`Message::ack`] is called.
-    #[cfg_attr(not(feature = "nats"), allow(dead_code))]
+    #[cfg_attr(not(feature = "postgres"), allow(dead_code))]
     pub(crate) fn with_ack(
         subject: impl Into<String>,
         payload: impl Into<Vec<u8>>,

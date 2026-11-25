@@ -1,6 +1,14 @@
 # TPT ERP RUST
 
+[![CI](https://github.com/tpt-solutions/tpt-erp-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/tpt-solutions/tpt-erp-rust/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://tpt-solutions.github.io/tpt-erp-rust/)
+[![API](https://img.shields.io/badge/API-rustdoc-orange)](https://tpt-solutions.github.io/tpt-erp-rust/api/tpt_erp_primitives/index.html)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green)](#license)
+
 > **Correctness by Compilation. Customization by Sandboxing. Scale by Default.**
+
+Read the [documentation site](https://tpt-solutions.github.io/tpt-erp-rust/) for guides,
+architecture, and operations.
 
 `tpt-erp-rust` is a high-performance, type-safe Rust **framework** (not a monolithic
 app) for building domain-specific ERP systems. It attacks the three historical killers
@@ -20,7 +28,7 @@ of ERP projects — data corruption, customization forks, and batch bottlenecks 
 | `tpt-erp-ledger` | Event-sourced double-entry core, append-only `EventStore`, and a CQRS projection engine. |
 | `tpt-erp-tenant` | Multi-tenancy via Postgres RLS + per-request tenant context (Axum extractor/middleware). |
 | `tpt-erp-wasm` | `wasmtime` sandbox for safe, computation-only, hot-loadable business-logic plugins. |
-| `tpt-erp-bus` | Event/pub-sub + background-job transport (NATS JetStream, in-memory reference). |
+| `tpt-erp-bus` | Event/pub-sub + background-job transport (Postgres-backed, in-memory reference). |
 | `tpt-erp-cache` | Tenant-scoped sessions + CQRS read-model cache (Redis/Dragonfly, in-memory reference). |
 | `tpt-erp-cli` | `tpt` CLI: scaffold, build, validate, and run WIT-based WebAssembly plugins. |
 | `tpt-erp-frontend` | Leptos WASM storefront demo reusing `tpt-erp-primitives` types in the browser. |
@@ -47,7 +55,7 @@ review (Phases 5 & 6), and the remaining hardening items have been resolved. See
 - [x] `tpt-erp-ledger` event store (in-memory + Postgres mirror), double-entry rules, CQRS projection engine
 - [x] `tpt-erp-tenant` identification + Postgres RLS + **real JWT (HS256) auth** (Axum middleware behind the `auth` feature)
 - [x] `tpt-erp-wasm` `wasmtime` sandbox (computation-only, fuel/memory limited, hot-swap)
-- [x] `tpt-erp-bus` (in-memory + NATS JetStream) and `tpt-erp-cache` (in-memory + Redis/Dragonfly)
+- [x] `tpt-erp-bus` (in-memory + Postgres) and `tpt-erp-cache` (in-memory + Redis/Dragonfly)
 - [x] `tpt-erp-cli` plugin tooling (`plugin new|build|validate|run`, `seed-demo`, `token`) and `tpt-erp-frontend` Leptos demo
 - [x] Reference implementations: 3PL/WMS, Manufacturing/MES, Accounting/GL, E-commerce/OMS, Retail/POS, Fleet/TMS
 
@@ -63,14 +71,16 @@ cargo run -p quickstart
 
 ### Run it and hit the API
 
-The fastest way to stand up the full stack (Postgres + NATS + Redis + the reference
+The fastest way to stand up the full stack (Postgres + Redis + the reference
 ledger server) is the bundled `docker-compose.yml`:
 
 ```bash
-# 1. Start Postgres, NATS, Redis, and the server.
+# 1. Start Postgres, Redis, and the server.
 docker compose up --build
 
-# 2. Mint a dev JWT scoped to tenant `acme` (uses the secret from docker-compose).
+# 2. Install the `tpt` CLI once (from this repo), then mint a dev JWT scoped to
+#    tenant `acme` (uses the secret from docker-compose).
+cargo install --path crates/tpt-erp-cli
 export TOKEN=$(tpt token mint --tenant acme --roles admin \
   --secret change-me-in-local-dev-only)
 

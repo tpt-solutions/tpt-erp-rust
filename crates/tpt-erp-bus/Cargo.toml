@@ -1,10 +1,10 @@
 [package]
 name = "tpt-erp-bus"
 readme = "README.md"
-keywords = ["erp", "event-bus", "messaging", "nats", "background-jobs"]
+keywords = ["erp", "event-bus", "messaging", "postgres", "background-jobs"]
 categories = ["asynchronous", "network-programming", "concurrency"]
 
-description = "Event-processing and background-job bus for TPT ERP. Decision: NATS JetStream (Rust-native, durable, single-binary). In-memory reference implementation included."
+description = "Event-processing and background-job bus for TPT ERP. Decision: PostgreSQL-backed durable bus (ordered, at-least-once, no third-party messaging dependency). In-memory reference implementation included."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -18,14 +18,14 @@ parking_lot = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
 futures = "0.3"
-tokio = { workspace = true, features = ["sync", "rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["sync", "rt-multi-thread", "macros", "time"] }
 
-# Optional NATS JetStream backend.
-async-nats = { version = "0.50", optional = true }
+# Optional PostgreSQL backend (shares the ledger's database).
+sqlx = { workspace = true, optional = true }
 
 [features]
-# Enables the NATS JetStream-backed implementation.
-nats = ["dep:async-nats"]
+# Enables the PostgreSQL-backed implementation in `postgres_impl`.
+postgres = ["dep:sqlx"]
 
 [dev-dependencies]
 tokio = { workspace = true }

@@ -60,6 +60,18 @@ struct Customer {
 #[tpt_api(entity = Customer, path = "/customers")]
 struct CustomerApi;
 
+/// DEMO ONLY: this example has no authentication, so every request is an anonymous
+/// principal. The generated router refuses requests that carry no principal (401), so the
+/// example must add one explicitly. Do not copy this into production code.
+async fn demo_anonymous_principal(
+    mut req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    req.extensions_mut()
+        .insert(tpt_erp_entity::Principal::default());
+    next.run(req).await
+}
+
 #[tokio::main]
 async fn main() {
     // --- 1. Founding primitives are unchanged ----------------------------
@@ -68,7 +80,8 @@ async fn main() {
 
     // --- 2. Build the CRUD API (no hand-written routes) -----------------
     let repo = Arc::new(InMemoryRepository::<Customer>::new());
-    let app = CustomerApi::router::<_, AllowAll>(repo);
+    let app = CustomerApi::router::<_, AllowAll>(repo)
+        .layer(axum::middleware::from_fn(demo_anonymous_principal));
 
     let now = Utc::now();
     let id = Id::<Customer>::new();

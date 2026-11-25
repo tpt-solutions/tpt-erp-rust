@@ -77,4 +77,5 @@ uses the extended filter support.
 - Swap `InMemoryRepository` for a Postgres-backed `Repository` (implement the
   `Repository` trait; the event store lives behind the `EventStore` trait too).
 - Add multi-tenancy with `tpt-erp-tenant` (Postgres RLS via `tenant_rls_middleware`).
-- Extend behaviour with a sandboxed WASM plugin (`tpt-erp-cli plugin new`).
+- Extend behaviour with a sandboxed WASM plugin (`cargo install --path crates/tpt-erp-cli`,
+  then `tpt plugin new`).

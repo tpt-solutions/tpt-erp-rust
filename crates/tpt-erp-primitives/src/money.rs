@@ -8,7 +8,6 @@ use crate::currency::Currency;
 use core::hash::Hash;
 use core::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 use rust_decimal::Decimal;
-use rust_decimal::MathematicalOps;
 use rust_decimal::RoundingStrategy;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -99,30 +98,57 @@ impl<C: Currency> Money<C> {
     ///
     /// Returns an error if `ratios` is empty or sums to zero (otherwise the proportional
     /// share would divide by zero).
+    ///
+    /// Negative amounts are allocated by magnitude and each part is negated, so the parts
+    /// still sum to `self`. An amount with more decimal places than the currency's minor
+    /// unit (e.g. `10.005` USD) is rejected with [`MoneyError::NotMinorUnitScale`] rather
+    /// than silently losing the fraction. Overflow returns [`MoneyError::Overflow`].
     pub fn allocate(&self, ratios: &[u64]) -> Result<Vec<Money<C>>, MoneyError> {
         if ratios.is_empty() {
             return Err(MoneyError::EmptyRatios);
         }
-        let total_ratio = Decimal::from(ratios.iter().copied().sum::<u64>());
-        if total_ratio.is_zero() {
+        let total_ratio = ratios
+            .iter()
+            .try_fold(0u64, |acc, &r| acc.checked_add(r))
+            .ok_or(MoneyError::Overflow)?;
+        if total_ratio == 0 {
             return Err(MoneyError::ZeroTotalRatio);
         }
-        let unit = Decimal::from(10).powi(-(C::MINOR_UNITS as i64));
+        // `normalize` strips trailing zeros, so `10.5000` is accepted but `10.005` is not.
+        if self.amount.normalize().scale() > C::MINOR_UNITS {
+            return Err(MoneyError::NotMinorUnitScale);
+        }
+
+        let negative = self.amount < Decimal::ZERO;
+        let magnitude = self.amount.abs();
+        let total = Decimal::from(total_ratio);
+        // One minor unit, e.g. 0.01 for a 2-decimal currency.
+        let unit = Decimal::new(1, C::MINOR_UNITS);
 
         let mut parts: Vec<Decimal> = vec![Decimal::ZERO; ratios.len()];
         let mut remainders: Vec<(usize, Decimal)> = Vec::with_capacity(ratios.len());
         let mut allocated = Decimal::ZERO;
         for (i, &r) in ratios.iter().enumerate() {
-            let share = self.amount * Decimal::from(r);
-            let whole = (share / total_ratio)
+            let share = magnitude
+                .checked_mul(Decimal::from(r))
+                .ok_or(MoneyError::Overflow)?;
+            let whole = share
+                .checked_div(total)
+                .ok_or(MoneyError::Overflow)?
                 .round_dp_with_strategy(C::MINOR_UNITS, RoundingStrategy::ToZero);
-            let rem = share - whole * total_ratio;
+            let rem = share
+                - whole
+                    .checked_mul(total)
+                    .ok_or(MoneyError::Overflow)?;
             parts[i] = whole;
-            allocated += whole;
+            allocated = allocated.checked_add(whole).ok_or(MoneyError::Overflow)?;
             remainders.push((i, rem));
         }
 
-        let mut leftover = self.amount - allocated;
+        // Largest-remainder: hand out the leftover units one at a time to the parts with the
+        // biggest fractional remainders. Leftover is a whole number of units because the
+        // input is at minor-unit scale.
+        let mut leftover = magnitude - allocated;
         remainders.sort_by_key(|&(_, r)| std::cmp::Reverse(r));
         for (i, _) in remainders {
             if leftover >= unit {
@@ -131,6 +157,11 @@ impl<C: Currency> Money<C> {
             }
         }
 
+        if negative {
+            for p in &mut parts {
+                *p = -*p;
+            }
+        }
         Ok(parts.into_iter().map(Money::new).collect())
     }
 }
@@ -147,6 +178,10 @@ pub enum MoneyError {
     /// An arithmetic operation overflowed the underlying decimal (rather than panicking).
     #[error("money arithmetic overflowed")]
     Overflow,
+    /// The amount has more decimal places than the currency's minor unit, so it cannot be
+    /// split into whole minor units without losing or inventing a fraction.
+    #[error("amount has more decimal places than the currency's minor unit")]
+    NotMinorUnitScale,
 }
 
 impl<C: Currency> Money<C> {
@@ -330,6 +365,61 @@ mod tests {
         let total = Money::<Usd>::from_major(100);
         assert_eq!(total.allocate(&[]), Err(MoneyError::EmptyRatios));
         assert_eq!(total.allocate(&[0, 0]), Err(MoneyError::ZeroTotalRatio));
+    }
+
+    #[test]
+    fn allocate_negative_amount_sums_back() {
+        let total = Money::<Usd>::from_major(-100);
+        let parts = total.allocate(&[1, 1, 1]).expect("valid ratios");
+        let sum: Money<Usd> = parts.iter().copied().fold(Money::zero(), |a, b| a + b);
+        assert_eq!(sum, total, "negative parts must sum back to the input");
+        assert!(parts.iter().all(|p| p.amount() <= dec!(0)));
+    }
+
+    #[test]
+    fn allocate_rejects_sub_minor_amount() {
+        // 10.005 USD cannot be split into whole cents; reject rather than drop 0.005.
+        let total = Money::<Usd>::new(dec!(10.005));
+        assert_eq!(total.allocate(&[1, 1]), Err(MoneyError::NotMinorUnitScale));
+        // Trailing zeros do not count as extra precision.
+        let ok = Money::<Usd>::new(dec!(10.5000));
+        assert!(ok.allocate(&[1, 1]).is_ok());
+    }
+
+    #[test]
+    fn allocate_overflow_is_an_error_not_a_panic() {
+        assert_eq!(
+            Money::<Usd>::new(Decimal::MAX).allocate(&[2, 1]),
+            Err(MoneyError::Overflow)
+        );
+        assert_eq!(
+            Money::<Usd>::from_major(1).allocate(&[u64::MAX, 1]),
+            Err(MoneyError::Overflow)
+        );
+    }
+
+    #[test]
+    fn allocate_always_sums_back_to_input() {
+        // Deterministic sweep over signs, magnitudes and ratio shapes.
+        let amounts = [
+            dec!(0.01),
+            dec!(0.02),
+            dec!(1),
+            dec!(99.99),
+            dec!(100),
+            dec!(-0.01),
+            dec!(-33.33),
+            dec!(-100),
+        ];
+        let ratio_sets: [&[u64]; 4] = [&[1, 1, 1], &[3, 7], &[1, 2, 3, 4, 5], &[1000, 1]];
+        for amount in amounts {
+            for ratios in ratio_sets {
+                let total = Money::<Usd>::new(amount);
+                let parts = total.allocate(ratios).expect("valid input");
+                let sum: Money<Usd> = parts.into_iter().fold(Money::zero(), |a, b| a + b);
+                assert_eq!(sum, total, "amount {amount} ratios {ratios:?}");
+            }
+        }
     }
 
     #[test]

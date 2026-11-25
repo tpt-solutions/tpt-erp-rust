@@ -14,7 +14,7 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
-ARG BIN=quickstart
+ARG BIN=server
 ENV RUSTFLAGS="-C target-feature=+crt-static"
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
@@ -23,6 +23,11 @@ RUN cargo build --release --bin ${BIN}
 
 # ---- Stage 3: minimal runtime -------------------------------------------
 FROM debian:bookworm-slim AS runtime
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --uid 10001 --no-create-home tpt
 WORKDIR /app
 COPY --from=builder /app/target/release/${BIN} /usr/local/bin/app
+USER tpt
 ENTRYPOINT ["/usr/local/bin/app"]

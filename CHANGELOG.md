@@ -11,6 +11,12 @@ Fleet/TMS) and the Phase 5 platform-hardening review.
 
 ## [Unreleased]
 
+### Changed
+- **Breaking:** the event/job bus is now Postgres-backed. The `nats` feature of
+  `tpt-erp-bus` was replaced by `postgres`, and the `TPT_BUS_URL` and `TPT_NATS_STREAM`
+  environment variables were removed. Migrate by enabling the `postgres` feature and
+  setting `TPT_DATABASE_URL`.
+
 ### Added
 - `tpt-erp-observability` crate: structured `tracing` subscriber driven by `RUST_LOG`
   and a Prometheus `/metrics` endpoint, wired into the reference server.

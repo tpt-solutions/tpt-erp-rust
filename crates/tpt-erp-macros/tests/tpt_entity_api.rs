@@ -72,7 +72,9 @@ async fn request(
 #[tokio::test]
 async fn crud_roundtrip_and_filtering() {
     let repo = Arc::new(InMemoryRepository::<Product>::new());
-    let app = ProductApi::router::<_, AllowAll>(repo);
+    let app = ProductApi::router::<_, AllowAll>(repo).layer(middleware::from_fn(|req, next| {
+        inject_principal(vec![], req, next)
+    }));
     let now = Utc::now();
 
     let id1 = Id::<Product>::new();
@@ -126,7 +128,9 @@ async fn crud_roundtrip_and_filtering() {
 #[tokio::test]
 async fn validation_rejects_bad_input() {
     let repo = Arc::new(InMemoryRepository::<Product>::new());
-    let app = ProductApi::router::<_, AllowAll>(repo);
+    let app = ProductApi::router::<_, AllowAll>(repo).layer(middleware::from_fn(|req, next| {
+        inject_principal(vec![], req, next)
+    }));
     let now = Utc::now();
 
     // empty name violates `required` + `len`
@@ -198,6 +202,38 @@ async fn inject_principal(roles: Vec<String>, req: axum::extract::Request, next:
         roles,
     });
     next.run(req).await
+}
+
+/// Fail closed: with no upstream principal, even `AllowAll` must refuse (401), rather than
+/// the router inventing an anonymous identity.
+#[tokio::test]
+async fn missing_principal_is_unauthorized() {
+    let repo = Arc::new(InMemoryRepository::<Product>::new());
+    let app = ProductApi::router::<_, AllowAll>(repo);
+    let r = request(&app, "GET", "/products", None).await;
+    assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// The path id is authoritative: a PUT whose body names a different entity is rejected
+/// before it can touch any row.
+#[tokio::test]
+async fn replace_rejects_mismatched_body_id() {
+    let repo = Arc::new(InMemoryRepository::<Product>::new());
+    let app = ProductApi::router::<_, AllowAll>(repo).layer(middleware::from_fn(|req, next| {
+        inject_principal(vec![], req, next)
+    }));
+    let now = Utc::now();
+    let path_id = Id::<Product>::new();
+    let body_id = Id::<Product>::new();
+
+    let r = request(
+        &app,
+        "PUT",
+        &format!("/products/{path_id}"),
+        Some(sample(body_id, "Mismatch", now)),
+    )
+    .await;
+    assert_eq!(r.status(), StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]

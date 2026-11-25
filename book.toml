@@ -1,0 +1,21 @@
+# mdBook site for TPT ERP RUST, published to GitHub Pages by .github/workflows/docs.yml.
+# Source lives in docs/ so there is one copy of the documentation.
+# Build locally:  mdbook build   (output in target/book)   or   mdbook serve --open
+
+[book]
+title = "TPT ERP RUST: type-safe ERP framework in Rust"
+description = "Build domain-specific ERP systems in Rust with compile-time correctness, sandboxed WebAssembly plugins, and multi-tenant Postgres."
+authors = ["TPT Solutions"]
+language = "en"
+src = "docs"
+
+[build]
+build-dir = "target/book"
+
+[output.html]
+site-url = "/tpt-erp-rust/"
+git-repository-url = "https://github.com/tpt-solutions/tpt-erp-rust"
+edit-url-template = "https://github.com/tpt-solutions/tpt-erp-rust/edit/master/{path}"
+additional-css = []
+default-theme = "navy"
+preferred-dark-theme = "ayu"

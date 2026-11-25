@@ -35,12 +35,8 @@ spec:
               value: {{ $.Values.env.RUST_LOG | quote }}
             - name: TPT_BIND
               value: "0.0.0.0:{{ $.Values.service.port }}"
-            - name: TPT_BUS_URL
-              value: {{ $.Values.env.TPT_BUS_URL | quote }}
             - name: TPT_CACHE_URL
               value: {{ $.Values.env.TPT_CACHE_URL | quote }}
-            - name: TPT_NATS_STREAM
-              value: {{ $.Values.env.TPT_NATS_STREAM | quote }}
             - name: TPT_DATABASE_URL
               valueFrom:
                 secretKeyRef:

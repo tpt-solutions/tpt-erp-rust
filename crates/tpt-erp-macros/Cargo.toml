@@ -4,7 +4,7 @@ readme = "README.md"
 keywords = ["erp", "macros", "proc-macro", "codegen", "derive"]
 categories = ["development-tools", "rust-patterns"]
 
-description = "Procedural macros for TPT ERP: StateMachine derive (TptEntity/TptApi planned)."
+description = "Procedural macros for TPT ERP: StateMachine, TptEntity and TptApi derives."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

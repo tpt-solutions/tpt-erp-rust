@@ -467,3 +467,146 @@
 - [x] Add a one-click hosted trial: `.devcontainer/devcontainer.json` (Rust 1.97 image with
         docker-in-docker + gh CLI, `wasm32` targets preinstalled) so evaluators can try the
         platform in GitHub Codespaces / VS Code with zero local setup.
+
+## Phase 7: Independent Review Findings (2026-11-26)
+> Read-only review of crates, the uncommitted NATS→Postgres bus swap, deploy/CI, and onboarding.
+> Nothing was built or run; items marked (verify) need a `cargo check`/test first. Several
+> Phase 5/6 checkmarks above are not backed by current code (tenant isolation, audit fields,
+> "zero leakage") — treat them as open until the matching item below is closed.
+
+### WS1 — Tenant isolation & auth (highest risk)
+- [x] `tenant_context_middleware`/`tenant_rls_middleware` must not overwrite a verified
+      `TenantContext` set by `auth_middleware` (`crates/tpt-erp-tenant/src/web.rs`). Regression
+      test `preverified_tenant_is_not_overridden_by_header` added; `cargo test -p tpt-erp-tenant
+      --features axum` passes (23/23); `--features axum,sqlx` type-checks. The sqlx branch
+      (`tenant_rls_middleware`) has no runtime test yet.
+- [x] Remove the unsigned-JWT `tenant` claim fallback from `web.rs` resolution (signed tokens
+      still resolve via `auth_middleware`); reject reserved subdomains (`www`, `api`, `app`,
+      `admin`, `static`, `mail`) in `from_subdomain`. Tests: `unsigned_jwt_tenant_claim_is_not_trusted`,
+      `reserved_subdomain_is_not_a_tenant`, `reserved_labels_are_not_tenants` (tenant 25/25, server 5/5).
+- [x] Gate unauthenticated Host/`X-Tenant-Id` resolution: the `TenantContext` extractor now only
+      honours those hints when `tenant_context_middleware`/`tenant_rls_middleware` marked the request
+      with `UnverifiedTenantHints` (fail closed otherwise). `examples/server` `main` refuses to start
+      unless `TPT_JWT_SECRET` is set or `TPT_ALLOW_UNVERIFIED_TENANT=1` (local dev). Tests: tenant 26/26,
+      server 5/5, sqlx variant compiles.
+- [x] Tenant-scoped repository: added `TenantPostgresRepository` (additive; the existing
+      `PostgresRepository` and `Repository` trait are unchanged). Each call runs in a transaction with
+      `app.tenant_id` set; the table has a `tenant_id` column, composite PK, and a `FORCE`d RLS policy
+      that fails closed when no tenant is set (`crates/tpt-erp-entity/src/postgres_repo.rs`).
+      Verified against Postgres 16: `tenant_repository_isolates_rows_between_tenants` connects as a
+      non-superuser, non-BYPASSRLS role and checks cross-tenant get/list/replace/delete/create.
+      Still open: `TptApi` router does not yet use it, and `list` filters in memory after RLS.
+- [x] RLS migration helper: `TenantPostgresRepository::create_table` enables and forces RLS and
+      creates the isolation policy (idempotent). Run it as the owner role, not the app role.
+- [x] Fix `tpt-erp-entity` `postgres` feature not compiling under sqlx 0.9: dynamic SQL now wrapped
+      in `AssertSqlSafe` (identifiers already validated by `check_ident`). Previously the Postgres
+      CRUD code could not build, so the `postgres-backends` CI job would have failed.
+- [ ] `TenantConnection` (`tenant/src/db.rs:119-148`): surface `set_config` errors, roll back on
+      handler cancel/panic (use sqlx `Transaction`), commit on 2xx/3xx
+- [ ] JWT hardening (`tenant/src/auth.rs`): reject empty/short secrets, require `exp`, reject
+      non-integer `exp`, add `nbf` + clock-skew leeway, use `verify_slice`; remove `dev-secret`
+      default in `tpt token mint`
+- [x] `TptApi` router fails closed when no `Principal` is present (`macros/src/tpt_api.rs`): the
+      anonymous-principal layer is gone, handlers return 401 without a principal, backend error text
+      is never sent to clients (generic "internal error"), and `replace` rejects a path/body id
+      mismatch (400). `quickstart` and `oms` now add an explicit, DEMO-ONLY anonymous principal.
+      Tests: `missing_principal_is_unauthorized`, `replace_rejects_mismatched_body_id`.
+      Still open: optimistic concurrency on update (needs a version column).
+- [ ] Actually stamp `created_at/updated_at/by` audit fields in the repository layer
+
+### WS2 — Money & ledger correctness
+- [ ] `Money::allocate`: handle negatives and sub-minor amounts so parts sum to input; checked
+      arithmetic; property tests (`primitives/src/money.rs:102-135`)
+- [ ] Double-entry validation: reject zero/negative legs and sub-minor scale, use `checked_add`,
+      dedupe on `TransactionId` so projection replay is idempotent
+- [ ] `PostgresEventStore`: write DB first (`ON CONFLICT` → `Conflict`), then update cache; fix
+      `load` ordering/`occurred_at`, fail loudly on unparseable rows, avoid `block_in_place` panic
+- [ ] Outbox: stage in `append_versioned*` too, in the same transaction as the event insert;
+      `FOR UPDATE SKIP LOCKED` in `fetch_pending`; prune delivered rows; never send empty payload
+- [ ] Anomaly detector: normalize `Decimal` before signature hashing, fix `as i64` truncation,
+      bound `seen`/`anomalies`
+
+### WS3 — WASM sandbox
+- [ ] Wall-clock limit: fine epoch tick (~10 ms) with deadline = ceil(wall/tick) instead of 1 tick
+      (`wasm/src/runtime.rs:125-139,276`)
+- [ ] Bill fuel on trapped/failed calls too; `saturating_add` in `billing.rs:42`
+- [ ] Downcast `wasmtime::Trap` instead of string-matching in `map_trap`; limit tables/instances;
+      cap input/output sizes; replace `.expect` on ticker spawn
+- [ ] Registry: sign name+version+bytes (anti-rollback/rename), `verify_strict`, revocation list,
+      require `SignedPlugin` in a production load path
+- [ ] `tpt plugin run --tenant` currently ignored (`cli/src/plugin.rs:447`) — wire to billing
+
+### WS4 — Postgres bus (uncommitted change)
+- [ ] Key consumer cursor on `(consumer, subject)`; add durable-name API; same-subject
+      multi-subscriber test (`bus/src/postgres_impl.rs:84-109`)
+- [ ] Retention/pruning of `tpt_bus_messages`; "start at latest" option so new job workers don't
+      replay history
+- [ ] Add `(subject, seq)` index or scanned high-water mark; max payload size check
+- [ ] Reconcile redelivery docs (`lib.rs:36-38` vs `postgres_impl.rs:15-17`); redelivery
+      timeout/dead-letter for poison messages; `tracing` instead of `eprintln!`; async/fallible `ack`
+- [ ] `lock_timeout` on global advisory publish lock; advisory-lock the startup DDL
+- [ ] Run bus Postgres tests in CI (add `-p tpt-erp-bus --features postgres` + Postgres service to
+      `postgres-backends`); unify test env var name (`TPT_BUS_TEST_DATABASE_URL` vs `TPT_TEST_POSTGRES_URL`);
+      add pure unit tests for `Tracker`
+- [ ] Make "RLS-aware bus" claim true (tenant column + policy) or remove it from `docs/ops.md`
+- [ ] Split unrelated dep bumps (rumqttc, hmac, wasmtime) out of the bus commit; confirm TLS via
+      `cargo tree -i rustls`
+
+### WS5 — Deploy / infra
+- [ ] Ingestion Deployment: add `TPT_DATABASE_URL` secretRef (needed for Postgres bus)
+- [ ] NetworkPolicy: add allow rules (app→Postgres 5432, app→Redis 6379, ingress to app port, DNS)
+- [ ] Container `securityContext` (no privilege escalation, read-only rootfs, drop ALL); fix uid/`fsGroup`
+      for postgres/redis images
+- [ ] Secret: URL-encode password (or generate hex), add `existingSecret` for external DBs; fix
+      `TPT_CACHE_URL` host to match `{{ .Release.Name }}-redis`
+- [ ] Dockerfile: non-root `USER`, add `.dockerignore`, pin base image tag, install CA certificates
+- [ ] (verify) `tpt-erp-cache` `redis` feature compiles (`&mut self.conn` in `&self` methods);
+      fix `touch` TTL no-op, sub-second TTL → `SETEX 0`, key-injection via unescaped `:`/`*`
+
+### WS6 — Stale docs after NATS→Postgres swap
+- [ ] Remove NATS from README.md (23,50,66,70) and `docs/architecture.md:25`
+- [ ] `.env.example`: drop `TPT_BUS_URL=nats://…`/`TPT_NATS_STREAM`; document bus DB URL + test var
+- [ ] Fix `examples/flow/src/lib.rs:14-15` (references nonexistent `nats` feature)
+- [ ] Remove stale `async-nats`/`nkeys`/`nuid` exceptions in `deny.toml`; re-verify `ring`/`aws-lc-sys`
+- [ ] CHANGELOG `[Unreleased]`: breaking `nats` → `postgres` feature rename
+- [ ] Decide whether the server wires the Postgres bus (`TPT_DATABASE_URL`/`TPT_CACHE_URL` are
+      currently unread) or remove them from compose/README
+
+### WS7 — Adoption & usability
+- [ ] Fix onboarding: `make plugin-validate` calls nonexistent `tpt token validate`; document
+      `cargo install --path crates/tpt-erp-cli`; correct binary name in `docs/getting-started.md`;
+      make its snippet compile (doctest or `include_str!` of `examples/quickstart`)
+- [ ] Docs-as-tests CI job: run documented Makefile targets and README commands
+- [ ] Unified `examples/erp-server` mounting all six verticals with tenant+JWT, seed data,
+      and one integration test (single-command "real ERP" demo)
+- [ ] `tpt new <name> --template api|vertical|plugin` and `tpt entity new` (struct + sqlx
+      migration); publish a cargo-generate template
+- [ ] OpenAPI emission from `TptApi` (`/openapi.json` + `/docs`), then generated TypeScript client
+- [ ] mdBook site: Mermaid diagrams, plugin-author guide (WIT/fuel), threat model, migration
+      guide; auto-publish via CI
+- [ ] Release automation: release-plz + cargo-semver-checks, cargo-llvm-cov, `cargo doc -D warnings`,
+      issue/PR templates, `SECURITY.md`; consolidate duplicate deny configs
+- [ ] Move `todo.md`/`spec.txt` under `docs/internal/` (or trim) before public launch
+- [ ] OIDC/JWKS (RS256/ES256) auth alongside HS256; signed outbound webhooks on bus events;
+      CSV import/export on `TptEntity`; entity-metadata-driven admin UI
+
+### Macro / ergonomics (lower priority)
+- [ ] `TptEntity` validators: `compile_error!` when `required`/`len`/`email` are used on
+      mismatched field types; `len` should count chars; stronger email check; safe `range` casts
+- [ ] `check_ident` should be a hard guard in release builds, not `debug_assert!`
+- [ ] `EventStore::append_versioned` naming/doc off-by-one (`expected == current + 1`); stop
+      using `.expect` in `append`
+- [ ] Observability: `install_recorder().expect` → `Result`; auth for `/metrics`; actually emit
+      metrics from crates
+- [ ] `tpt-erp-frontend` is a static demo — add state/API calls/tests or relabel as groundwork
+- [ ] Postgres/Redis/RLS tests skip silently when env vars are missing — make CI fail if the
+      backend job runs without them
+
+### Innovative additions (forward-looking, not defects)
+- [ ] Point-in-time API: `GET /balances?as_of=`, `tpt replay --until`, "restate under new rules"
+      diff via plugin re-run
+- [ ] Per-tenant fuel metering → ledger events → usage reports, quotas, invoice lines (after WS3
+      billing fixes)
+- [ ] Signed plugin registry CLI: `tpt plugin publish|install` with capability manifests
+- [ ] `tpt plugin test`: run plugins against recorded event fixtures with fuel assertions
+- [ ] Productize `bus-visualizer` as `/admin/events` in the unified server

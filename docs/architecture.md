@@ -22,7 +22,7 @@ docs/       architecture & usage notes
 | `tpt-erp-tenant`      | Multi-tenancy: identification, Postgres RLS + `SET LOCAL`, Axum extractor/middleware, **real JWT (HS256) auth** (`auth` module). | Implemented |
 | `tpt-erp-wasm`        | `wasmtime` sandbox for safe, hot-loadable, computation-only business-logic plugins (WIT contract, fuel/memory limits, hot-swap). | Implemented |
 | `tpt-erp-cache`       | `SessionStore` + `ReadModelCache` over in-memory or Redis backends.          | Implemented |
-| `tpt-erp-bus`         | Event bus (`tpt-erp-bus`) over in-memory or NATS JetStream backends.         | Implemented |
+| `tpt-erp-bus`         | Event/job bus over an in-memory reference or a Postgres-backed transport.   | Implemented |
 | `tpt-erp-observability`| Structured tracing/logging + metrics endpoint wiring.                       | Implemented |
 | `tpt-erp-cli`         | `tpt` CLI: `plugin new|build|validate|run`, `seed-demo`, `token mint`.      | Implemented |
 | `tpt-erp-frontend`    | Leptos workspace member; shares `Money<Usd>` with the backend.              | Implemented |

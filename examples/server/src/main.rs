@@ -16,6 +16,19 @@ async fn main() {
         .parse::<SocketAddr>()
         .expect("invalid TPT_BIND address");
 
+    // Fail closed: without a JWT secret the tenant comes from unauthenticated Host/header
+    // hints, which anyone can forge. Require an explicit opt-in for that dev-only mode.
+    let has_secret = std::env::var("TPT_JWT_SECRET").is_ok_and(|s| !s.is_empty());
+    let allow_unverified = std::env::var("TPT_ALLOW_UNVERIFIED_TENANT")
+        .is_ok_and(|v| matches!(v.as_str(), "1" | "true"));
+    if !has_secret && !allow_unverified {
+        eprintln!(
+            "refusing to start: set TPT_JWT_SECRET (production) or \
+             TPT_ALLOW_UNVERIFIED_TENANT=1 (local dev only, trusts X-Tenant-Id/Host)"
+        );
+        std::process::exit(1);
+    }
+
     let listener = TcpListener::bind(addr).await.expect("failed to bind");
     tracing::info!(%addr, "tpt-erp ledger server listening");
     serve(

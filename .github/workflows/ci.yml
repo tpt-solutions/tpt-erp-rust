@@ -101,13 +101,15 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Clippy (postgres features)
-        run: cargo clippy -p tpt-erp-ledger -p tpt-erp-entity -p tpt-erp-tenant \
-          --features "tpt-erp-ledger/postgres,tpt-erp-entity/postgres,tpt-erp-tenant/sqlx" \
-          --all-targets -- -D warnings
+        run: |
+          cargo clippy -p tpt-erp-ledger -p tpt-erp-entity -p tpt-erp-tenant \
+            --features "tpt-erp-ledger/postgres,tpt-erp-entity/postgres,tpt-erp-tenant/sqlx" \
+            --all-targets -- -D warnings
 
       - name: Test (postgres features)
-        run: cargo test -p tpt-erp-ledger -p tpt-erp-entity -p tpt-erp-tenant \
-          --features "tpt-erp-ledger/postgres,tpt-erp-entity/postgres,tpt-erp-tenant/sqlx"
+        run: |
+          cargo test -p tpt-erp-ledger -p tpt-erp-entity -p tpt-erp-tenant \
+            --features "tpt-erp-ledger/postgres,tpt-erp-entity/postgres,tpt-erp-tenant/sqlx"
 
   # Pin to the declared MSRV so we notice if a dependency or language feature
   # silently raises the floor (rust-version in the root Cargo.toml).

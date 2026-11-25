@@ -29,12 +29,8 @@ spec:
           env:
             - name: RUST_LOG
               value: {{ .Values.env.RUST_LOG | quote }}
-            - name: TPT_BUS_URL
-              value: {{ .Values.env.TPT_BUS_URL | quote }}
             - name: TPT_CACHE_URL
               value: {{ .Values.env.TPT_CACHE_URL | quote }}
-            - name: TPT_NATS_STREAM
-              value: {{ .Values.env.TPT_NATS_STREAM | quote }}
           resources:
             requests:
               cpu: {{ .Values.resources.requests.cpu }}

@@ -8,8 +8,9 @@ guide covers deploying and operating it.
 
 - A Kubernetes cluster (1.29+) with an ingress controller.
 - Helm 3.
-- Postgres, NATS JetStream, and Redis/Dragonfly available (in-cluster or managed). The
-  chart can deploy all three — see `deploy/templates`.
+- Postgres and Redis/Dragonfly available (in-cluster or managed). The chart can deploy
+  both — see `deploy/templates`. The event bus runs on Postgres, so it needs no separate
+  messaging service.
 
 ## Install backing services
 
@@ -18,7 +19,6 @@ helm dependency update deploy
 helm install tpt-erp deploy \
   --namespace tpt-erp --create-namespace \
   --set postgres.enabled=true \
-  --set nats.enabled=true \
   --set redis.enabled=true
 ```
 
@@ -26,7 +26,8 @@ This brings up:
 
 - **Postgres** with Row-Level Security (see `tpt-erp-tenant::rls`). Tenant isolation is
   enforced at the database engine, not just in app code.
-- **NATS JetStream** (`tpt-events` stream) for the event bus and background jobs.
+- The **event bus and background jobs** run on Postgres (`tpt_bus_messages` table, managed by
+  `tpt-erp-bus`'s `postgres` feature), so they share Postgres backups and RLS-aware ops.
 - **Redis/Dragonfly** for tenant-scoped sessions and CQRS read-model caching.
 
 ## Deploy an application server
@@ -34,8 +35,8 @@ This brings up:
 ```bash
 helm upgrade --install tpt-erp deploy \
   --namespace tpt-erp \
-  --set server.image.repository=ghcr.io/tpt-erp-rust/server \
-  --set server.image.tag=latest \
+  --set server.image.repository=ghcr.io/tpt-solutions/tpt-erp-server \
+  --set server.image.tag=0.1.0 \
   --set server.replicas=3
 ```
 
@@ -48,7 +49,6 @@ Key values (see `deploy/values.yaml`):
 | `server.replicas` | Desired server replicas (HPA scales beyond this). |
 | `ingestion.autoscaling` | HPA min/max replicas for the ingestion tier. |
 | `env.RUST_LOG` | Log filter passed to the `tracing` subscriber. |
-| `env.TPT_BUS_URL` | NATS URL. |
 | `env.TPT_CACHE_URL` | Redis/Dragonfly URL. |
 
 ## Observability

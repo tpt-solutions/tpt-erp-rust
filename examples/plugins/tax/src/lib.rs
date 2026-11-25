@@ -28,7 +28,7 @@ impl Guest for Component {
         };
         // Represent the balance in integer minor units (1/10_000ths) to avoid any `f64`
         // drift; tax is computed in basis points, also as integers.
-        let balance_minor = major as i64 * 10_000 + minor as i64;
+        let balance_minor = major * 10_000 + minor;
 
         // Jurisdiction-specific tax tiers (basis points of the taxable base).
         let (tier, basis_points) = match jurisdiction.as_str() {

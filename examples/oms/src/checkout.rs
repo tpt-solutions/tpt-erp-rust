@@ -195,9 +195,18 @@ impl OmsApp {
         let products = Arc::new(InMemoryRepository::<ProductRow>::new());
         let orders = Arc::new(InMemoryRepository::<OrderRow>::new());
 
+        // DEMO ONLY: no authentication in this example, so every catalog request gets an
+        // anonymous principal. The generated routers refuse requests without one (401).
         let catalog = Router::new()
             .merge(ProductApi::router::<_, StaffAuth>(products))
-            .merge(OrderApi::router::<_, CustomerAuth>(orders));
+            .merge(OrderApi::router::<_, CustomerAuth>(orders))
+            .layer(axum::middleware::from_fn(
+                |mut req: axum::extract::Request, next: axum::middleware::Next| async move {
+                    req.extensions_mut()
+                        .insert(tpt_erp_entity::Principal::default());
+                    next.run(req).await
+                },
+            ));
 
         let checkout_router = Router::new()
             .route("/checkout", post(checkout_handler))

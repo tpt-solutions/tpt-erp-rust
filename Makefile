@@ -59,7 +59,7 @@ plugin-build:
 > cargo build --manifest-path examples/plugins/$(PLUGIN)/Cargo.toml --target wasm32-unknown-unknown --release
 
 plugin-validate: plugin-build
-> cargo run -p tpt-erp-cli -- token validate examples/plugins/$(PLUGIN)/target/wasm32-unknown-unknown/release/$(PLUGIN).wasm
+> cargo run -p tpt-erp-cli -- plugin validate examples/plugins/$(PLUGIN)/target/wasm32-unknown-unknown/release/$(PLUGIN).wasm
 
 docker-up:
 > docker compose up --build

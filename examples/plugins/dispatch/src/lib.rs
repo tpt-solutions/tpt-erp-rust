@@ -24,10 +24,7 @@ impl Guest for Component {
 
         // Read the stop's demand from the host. The plugin can only *read* data the
         // host chooses to expose; it cannot write or reach the network.
-        let demand = match get_stock_level(&stop) {
-            Ok(d) => d,
-            Err(_) => 0,
-        };
+        let demand = get_stock_level(&stop).unwrap_or_default();
 
         // Priority score: higher demand pushes the stop earlier; longer routing weight
         // (distance) discounts it. Clamped to be non-negative.

@@ -148,7 +148,7 @@ pub fn derive_state_machine(input: TokenStream) -> TokenStream {
 }
 
 /// Map a struct to a SQL table, adding validation, audit fields, and a query
-/// filter. See [`tpt_erp_entity`] for the backing runtime traits and usage.
+/// filter. See the `tpt-erp-entity` crate for the backing runtime traits and usage.
 ///
 /// Requires the consumer crate to depend on `tpt-erp-entity`, `serde`, and (for DB
 /// mapping) `sqlx` (add `#[derive(sqlx::FromRow)]` alongside this derive).

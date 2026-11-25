@@ -2,9 +2,8 @@
 //!
 //! Subscribes to the `tpt-erp-bus` and streams every event to a browser over Server-Sent
 //! Events, giving a real-time view of the cross-vertical flow OMS → WMS → TMS → GL. It is
-//! both a sales demo and a debugging tool for the event-sourced architecture: point it at a
-//! NATS JetStream backend (`TPT_BUS_URL`) and watch production events flow, or run it
-//! locally and let it drive the reference `flow` so the page never goes quiet.
+//! both a sales demo and a debugging tool for the event-sourced architecture. It runs the
+//! reference `flow` simulation on the in-memory bus so the page never goes quiet.
 //!
 //! ```bash
 //! cargo run -p bus-visualizer

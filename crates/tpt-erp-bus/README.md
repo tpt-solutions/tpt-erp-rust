@@ -7,21 +7,22 @@ consumers (projections, job workers) that react to them. Application code depend
 only on two object-safe trait contracts; concrete backends are selected by
 feature flag.
 
-## Backend decision: NATS JetStream (not Kafka)
+## Backend decision: PostgreSQL
 
-The workspace standardized on **NATS JetStream** because it fits this system best:
+The durable backend is our own implementation on **PostgreSQL**, the database the
+ledger already runs on:
 
-- **Rust-native** — first-class [`async-nats`] client, no JVM.
-- **Durable by default** — JetStream persists and replays events, exactly what an
-  event-sourced ledger ([`tpt-erp-ledger`](../tpt-erp-ledger/README.md)) needs for
-  reprocessing and CQRS rebuilds.
-- **Single binary** — one `nats-server` process covers both the event log *and*
-  the background-job queue, shrinking the ops surface vs. Kafka + Zookeeper/KRaft.
-- **Built-in flow control** — consumer groups, ack-based redelivery, and KV for
-  dedup map cleanly onto background jobs.
+- **No new infrastructure.** Events and jobs live in the same database as ledger state,
+  so they share backups and operational tooling.
+- **No third-party messaging dependency.** Keeps the dependency tree free of
+  Apache-only licensed transport crates (see `deny.toml`).
+- **Event-sourcing friendly.** Events are stored in order and can be replayed for CQRS
+  rebuilds ([`tpt-erp-ledger`](../tpt-erp-ledger/README.md)).
 
-Kafka remains viable for very high fan-out analytics; if needed, a second backend
-can be added behind a `kafka` feature without touching the contracts.
+Guarantees (see [`postgres_impl`](src/postgres_impl.rs)): publishes are serialized so
+events become visible in order; each subject has a durable cursor that only advances past
+acknowledged messages (at-least-once across restarts); every subscription receives every
+matching message (fan-out). Competing consumers for one job type are not load-balanced yet.
 
 ## Contracts
 
@@ -56,20 +57,22 @@ bus.enqueue("invoice", b"job-42").await?;
 | Backend | Feature | Notes |
 |---------|---------|-------|
 | `InMemoryBus` ([`memory`](src/memory.rs)) | default (always on) | `tokio::sync::mpsc`; exact + `>`-prefix matching. No external service. |
-| `NatsBus` ([`nats_impl`](src/nats_impl.rs)) | `nats` | Connects to a JetStream server; durable `tpt-events` stream, `>` catch-all subject, pull consumers with explicit acks. |
+| `PostgresBus` ([`postgres_impl`](src/postgres_impl.rs)) | `postgres` | Durable events in `tpt_bus_messages`; per-subject consumer cursors in `tpt_bus_consumers`; ordered publish; at-least-once with ack-based cursors. Uses the ledger's Postgres database. |
 
 ```toml
-tpt-erp-bus = { features = ["nats"] }
+tpt-erp-bus = { features = ["postgres"] }
 ```
 
 ```rust
-let bus = tpt_erp_bus::NatsBus::connect("nats://localhost:4222").await?;
+let bus = tpt_erp_bus::postgres_impl::PostgresBus::connect("postgres://tpt:…@localhost/tpt").await?;
 ```
 
 ## Status
 
-Early development (0.1.0). The in-memory implementation is fully tested; the
-NATS backend is feature-gated. APIs may change between releases.
+Early development (0.1.0). The in-memory implementation is fully tested. The PostgreSQL
+backend (`postgres` feature) has integration tests that need a live database, run with
+`TPT_BUS_TEST_DATABASE_URL=... cargo test -p tpt-erp-bus --features postgres -- --ignored`.
+APIs may change between releases.
 
 ## License
 

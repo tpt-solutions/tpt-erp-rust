@@ -83,7 +83,7 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
     let create = Ident::new(&format!("{api}_create"), api.span());
     let replace = Ident::new(&format!("{api}_replace"), api.span());
     let delete = Ident::new(&format!("{api}_delete"), api.span());
-    let ensure_principal = Ident::new(&format!("{api}_ensure_principal"), api.span());
+    let require_principal = Ident::new(&format!("{api}_require_principal"), api.span());
 
     let expanded = quote! {
         /// Generated state shared by the CRUD handlers.
@@ -103,6 +103,7 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
         /// Generated error type returned by the CRUD handlers.
         #[derive(Debug)]
         enum #error_name {
+            Unauthorized,
             Forbidden,
             NotFound,
             BadRequest(String),
@@ -124,6 +125,7 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
                     ::tpt_erp_entity::RepositoryError::NotFound => #error_name::NotFound,
                     ::tpt_erp_entity::RepositoryError::Validation(v) => #error_name::BadRequest(v.to_string()),
                     ::tpt_erp_entity::RepositoryError::Conflict(m) => #error_name::Conflict(m),
+                    // Keep the backend detail for diagnostics only; it is never sent to clients.
                     ::tpt_erp_entity::RepositoryError::Backend(m) => #error_name::Internal(m.to_string()),
                 }
             }
@@ -132,11 +134,13 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
         impl ::axum::response::IntoResponse for #error_name {
             fn into_response(self) -> ::axum::response::Response {
                 let (status, msg): (::axum::http::StatusCode, &str) = match self {
+                    #error_name::Unauthorized => (::axum::http::StatusCode::UNAUTHORIZED, "unauthorized"),
                     #error_name::Forbidden => (::axum::http::StatusCode::FORBIDDEN, "forbidden"),
                     #error_name::NotFound => (::axum::http::StatusCode::NOT_FOUND, "not found"),
                     #error_name::BadRequest(ref m) => (::axum::http::StatusCode::BAD_REQUEST, m.as_str()),
                     #error_name::Conflict(ref m) => (::axum::http::StatusCode::CONFLICT, m.as_str()),
-                    #error_name::Internal(ref m) => (::axum::http::StatusCode::INTERNAL_SERVER_ERROR, m.as_str()),
+                    // Generic on purpose: backend error text is never returned to the client.
+                    #error_name::Internal(_) => (::axum::http::StatusCode::INTERNAL_SERVER_ERROR, "internal error"),
                 };
                 let body = ::axum::Json(::serde_json::json!({ "error": msg }));
                 (status, body).into_response()
@@ -153,38 +157,34 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
                 ::axum::Router::new()
                     .route(#path, ::axum::routing::get(#list::<R, A>).post(#create::<R, A>))
                     .route(#path_id, ::axum::routing::get(#get_one::<R, A>).put(#replace::<R, A>).delete(#delete::<R, A>))
-                    .layer(::axum::middleware::from_fn(#ensure_principal))
                     .with_state(#state_name::<R, A> { repo, _auth: ::core::marker::PhantomData })
             }
         }
 
-        /// Middleware that guarantees a [`::tpt_erp_entity::Principal`] is available to the
-        /// handlers, but only when an upstream auth middleware has not already inserted a
-        /// real one. This keeps a custom [`::tpt_erp_entity::AuthPolicy`] authoritative:
-        /// its `Principal` is never clobbered by a default.
-        #[allow(non_snake_case)]
-        async fn #ensure_principal(
-            mut req: ::axum::extract::Request,
-            next: ::axum::middleware::Next,
-        ) -> ::axum::response::Response {
-            if req.extensions().get::<::tpt_erp_entity::Principal>().is_none() {
-                req.extensions_mut().insert(::tpt_erp_entity::Principal::default());
-            }
-            next.run(req).await
+        /// Fail closed: the handlers require a [`::tpt_erp_entity::Principal`] inserted by an
+        /// upstream authentication layer. The router never invents an anonymous identity,
+        /// so no policy (including `AllowAll`) is reachable without an explicit principal.
+        #[allow(non_snake_case, clippy::result_large_err)]
+        fn #require_principal(
+            principal: ::core::option::Option<::axum::extract::Extension<::tpt_erp_entity::Principal>>,
+        ) -> ::core::result::Result<::tpt_erp_entity::Principal, #error_name> {
+            principal
+                .map(|p| p.0)
+                .ok_or(#error_name::Unauthorized)
         }
 
         #[allow(non_snake_case)]
         async fn #list<R, A>(
             state: ::axum::extract::State<#state_name<R, A>>,
             filter: ::axum::extract::Query<<#entity_ty as ::tpt_erp_entity::EntityTable>::Filter>,
-            principal: ::axum::extract::Extension<::tpt_erp_entity::Principal>,
+            principal: ::core::option::Option<::axum::extract::Extension<::tpt_erp_entity::Principal>>,
         ) -> ::core::result::Result<::axum::Json<::tpt_erp_entity::Page<#entity_ty>>, #error_name>
         where
             R: ::tpt_erp_entity::Repository<#entity_ty> + 'static,
             A: ::tpt_erp_entity::AuthPolicy,
         {
-            let principal = &principal.0;
-            A::authorize(::tpt_erp_entity::Operation::List, principal)
+            let principal = #require_principal(principal)?;
+            A::authorize(::tpt_erp_entity::Operation::List, &principal)
                 .map_err(|_| #error_name::Forbidden)?;
             let pagination = ::tpt_erp_entity::Pagination {
                 page: filter.0.page.unwrap_or(1),
@@ -203,14 +203,14 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
         async fn #get_one<R, A>(
             state: ::axum::extract::State<#state_name<R, A>>,
             id: ::axum::extract::Path<<#entity_ty as ::tpt_erp_entity::EntityTable>::Id>,
-            principal: ::axum::extract::Extension<::tpt_erp_entity::Principal>,
+            principal: ::core::option::Option<::axum::extract::Extension<::tpt_erp_entity::Principal>>,
         ) -> ::core::result::Result<::axum::Json<#entity_ty>, #error_name>
         where
             R: ::tpt_erp_entity::Repository<#entity_ty> + 'static,
             A: ::tpt_erp_entity::AuthPolicy,
         {
-            let principal = &principal.0;
-            A::authorize(::tpt_erp_entity::Operation::Read, principal)
+            let principal = #require_principal(principal)?;
+            A::authorize(::tpt_erp_entity::Operation::Read, &principal)
                 .map_err(|_| #error_name::Forbidden)?;
             match state.0.repo.get(id.0).await.map_err(#error_name::from)? {
                 ::core::option::Option::Some(e) => ::core::result::Result::Ok(::axum::Json(e)),
@@ -221,15 +221,15 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
         #[allow(non_snake_case)]
         async fn #create<R, A>(
             state: ::axum::extract::State<#state_name<R, A>>,
-            principal: ::axum::extract::Extension<::tpt_erp_entity::Principal>,
+            principal: ::core::option::Option<::axum::extract::Extension<::tpt_erp_entity::Principal>>,
             body: ::axum::Json<#entity_ty>,
         ) -> ::core::result::Result<(::axum::http::StatusCode, ::axum::Json<#entity_ty>), #error_name>
         where
             R: ::tpt_erp_entity::Repository<#entity_ty> + 'static,
             A: ::tpt_erp_entity::AuthPolicy,
         {
-            let principal = &principal.0;
-            A::authorize(::tpt_erp_entity::Operation::Create, principal)
+            let principal = #require_principal(principal)?;
+            A::authorize(::tpt_erp_entity::Operation::Create, &principal)
                 .map_err(|_| #error_name::Forbidden)?;
             let created = state.0.repo.create(body.0).await.map_err(#error_name::from)?;
             ::core::result::Result::Ok((::axum::http::StatusCode::CREATED, ::axum::Json(created)))
@@ -239,16 +239,22 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
         async fn #replace<R, A>(
             state: ::axum::extract::State<#state_name<R, A>>,
             id: ::axum::extract::Path<<#entity_ty as ::tpt_erp_entity::EntityTable>::Id>,
-            principal: ::axum::extract::Extension<::tpt_erp_entity::Principal>,
+            principal: ::core::option::Option<::axum::extract::Extension<::tpt_erp_entity::Principal>>,
             body: ::axum::Json<#entity_ty>,
         ) -> ::core::result::Result<::axum::Json<#entity_ty>, #error_name>
         where
             R: ::tpt_erp_entity::Repository<#entity_ty> + 'static,
             A: ::tpt_erp_entity::AuthPolicy,
         {
-            let principal = &principal.0;
-            A::authorize(::tpt_erp_entity::Operation::Update, principal)
+            let principal = #require_principal(principal)?;
+            A::authorize(::tpt_erp_entity::Operation::Update, &principal)
                 .map_err(|_| #error_name::Forbidden)?;
+            // The path id is authoritative: refuse a body that names a different entity.
+            if ::tpt_erp_entity::EntityTable::id(&body.0) != id.0 {
+                return ::core::result::Result::Err(#error_name::BadRequest(
+                    "path id does not match body id".to_string(),
+                ));
+            }
             match state.0.repo.replace(id.0, body.0).await.map_err(#error_name::from)? {
                 ::core::option::Option::Some(e) => ::core::result::Result::Ok(::axum::Json(e)),
                 ::core::option::Option::None => ::core::result::Result::Err(#error_name::NotFound),
@@ -259,14 +265,14 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream> {
         async fn #delete<R, A>(
             state: ::axum::extract::State<#state_name<R, A>>,
             id: ::axum::extract::Path<<#entity_ty as ::tpt_erp_entity::EntityTable>::Id>,
-            principal: ::axum::extract::Extension<::tpt_erp_entity::Principal>,
+            principal: ::core::option::Option<::axum::extract::Extension<::tpt_erp_entity::Principal>>,
         ) -> ::core::result::Result<::axum::http::StatusCode, #error_name>
         where
             R: ::tpt_erp_entity::Repository<#entity_ty> + 'static,
             A: ::tpt_erp_entity::AuthPolicy,
         {
-            let principal = &principal.0;
-            A::authorize(::tpt_erp_entity::Operation::Delete, principal)
+            let principal = #require_principal(principal)?;
+            A::authorize(::tpt_erp_entity::Operation::Delete, &principal)
                 .map_err(|_| #error_name::Forbidden)?;
             match state.0.repo.delete(id.0).await.map_err(#error_name::from)? {
                 true => ::core::result::Result::Ok(::axum::http::StatusCode::NO_CONTENT),

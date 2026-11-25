@@ -44,9 +44,7 @@ autoscaling:
 # wiring, never trust.
 env:
   RUST_LOG: "info"
-  TPT_BUS_URL: "nats://nats:4222"
   TPT_CACHE_URL: "redis://redis:6379"
-  TPT_NATS_STREAM: "tpt-events"
 
 service:
   name: ingestion
@@ -89,19 +87,6 @@ postgres:
     limits:
       cpu: "1"
       memory: "1Gi"
-
-nats:
-  enabled: true
-  replicas: 1
-  image: "nats:2.10"
-  storage: "5Gi"
-  resources:
-    requests:
-      cpu: "100m"
-      memory: "128Mi"
-    limits:
-      cpu: "500m"
-      memory: "512Mi"
 
 redis:
   enabled: true

@@ -1,9 +1,9 @@
 # Single-command local trial stack for TPT ERP RUST.
 #
-# Brings up Postgres + NATS + Redis + the reference ledger server so you can poke
-# the API without a Kubernetes cluster. The server runs its in-memory ledger today;
-# the Postgres/NATS/Redis services are the real backends the reference verticals
-# (and the Postgres-backed EventStore/Repository) connect to.
+# Brings up Postgres + Redis + the reference ledger server so you can poke the API
+# without a Kubernetes cluster. The server runs its in-memory ledger today; Postgres
+# and Redis are the real backends the reference verticals (and the Postgres-backed
+# EventStore/Repository, plus the Postgres event bus) connect to.
 #
 #   docker compose up --build
 #
@@ -28,18 +28,6 @@ services:
       timeout: 3s
       retries: 10
 
-  nats:
-    image: nats:2.10
-    command: ["--jetstream", "--http_port", "8222"]
-    ports:
-      - "4222:4222"
-      - "8222:8222"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8222/healthz"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   redis:
     image: redis:7-alpine
     ports:
@@ -59,8 +47,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      nats:
-        condition: service_healthy
       redis:
         condition: service_healthy
     ports:
@@ -71,7 +57,6 @@ services:
       # enforces JWT (HS256) auth only when TPT_JWT_SECRET is present.
       TPT_JWT_SECRET: "change-me-in-local-dev-only"
       RUST_LOG: "info"
-      TPT_BUS_URL: "nats://nats:4222"
       TPT_CACHE_URL: "redis://redis:6379"
       TPT_DATABASE_URL: "postgres://tpt:tpt@postgres:5432/tpt"
     healthcheck:
